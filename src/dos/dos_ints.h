@@ -20,7 +20,7 @@
 ** dos_ints.h
 **
 ** General DOS interrupt defines
-** $Id: dos_ints.h,v 1.6 2000/08/11 01:40:07 matt Exp $
+** $Id$
 */
 
 #ifndef _DOS_INTS_H_
@@ -39,7 +39,10 @@
 #endif /* _DOS_INTS_H_ */
 
 /*
-** $Log: dos_ints.h,v $
+** $Log$
+** Revision 1.1  2000/10/10 13:27:18  joy
+** Initial revision
+**
 ** Revision 1.6  2000/08/11 01:40:07  matt
 ** cleanups
 **

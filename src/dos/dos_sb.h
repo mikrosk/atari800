@@ -20,7 +20,7 @@
 ** dos_sb.h
 **
 ** DOS Sound Blaster header file
-** $Id: dos_sb.h,v 1.7 2000/08/11 01:40:33 matt Exp $
+** $Id$
 */
 
 #ifndef _DOS_SB_H_
@@ -45,7 +45,10 @@ extern void sb_setrate(int rate);
 #endif /* _DOS_SB_H_ */
 
 /*
-** $Log: dos_sb.h,v $
+** $Log$
+** Revision 1.1  2000/10/10 13:27:18  joy
+** Initial revision
+**
 ** Revision 1.7  2000/08/11 01:40:33  matt
 ** major rewrite - far cleaner, and fixed an SB detection reboot bug =(
 **
