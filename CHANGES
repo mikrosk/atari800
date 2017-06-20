@@ -1,0 +1,965 @@
+Changes in 0.9.1
+----------------
+
+o new POKEY v2.4 with sound channels filtering! Exclusively
+  written by Ron Fries for Atari800 emulator. Thanks, Ron!
+
+o merge of Perry's and (Raster & Joy)'s source tree - great!
+  Current source can be compiled for DOS by either Makefile.dos
+  or by Perry's Makefile.pm (with Pentium optimizations).
+  Perry's Makefile needs DOS game library Allegro. The only
+  functional difference between these two DOS versions is that
+  Makefile.pm enables keyclicks (due to different sound handling).
+
+o major rewrite of DOS keyboard emulation - now allows two
+  modes of operation: native (the labels on English PC keyboard
+  are valid) and original (the keyboard layout is the same as
+  the original Atari800 keyboard). You can switch between these
+  two modes on-the-fly by pressing Control+F1 and Shift+F1).
+  Better handling of START/SELECT/OPTION keys (these console keys
+  are independent of the rest of keyboard).
+  Screen view movement changed to Control-numeric pad (just
+  like emulated joy, but with Control key). <Raster>
+
+o ANTIC speeded up by narrowing the screen width to 42 chars
+  (originally it was 48 chars wide, but no TV can show more 
+  than about 43 chars..). This should speed things up for
+  about 10% in wide modes and PM graphics. <Perry>
+
+o Emulation of 320 kB of memory added. Two different modes are
+  supported - Rambo and Compy Shop. Extended memory tested by
+  Q-meg (alternative operating system for Atari320XE).
+  ROM/ShadowRAM and AtariXL Basic switching optimized. <Raster>
+
+o Atari5200 emulation corrected (loading of ROMs, keyboard,
+  paddles). Special support for Bounty Bob on Atari5200
+  added. <Perry>
+
+o new SIO code that supports formatting (written by <thor>,
+  updated by Perry and Petr).
+
+
+Changes in 0.9.0
+----------------
+
+o slight speed up in antic.c <Perry>
+
+o the right-most vertical line was missing on screen <Raster>
+
+o DOS: BREAK key should not have auto-repeat,  Invers key added
+  <Raster>
+
+o ANTIC now contains #ifdef POKEY_UPDATE. That should be defined
+  in Makefiles for architectures where it's impossible to update
+  sound buffers in DMA interrupt (i.e. Unices etc)
+
+o source cleaned up (no C++ style of comments), docs updated
+
+
+Changes in 0.8.9
+----------------
+
+o ANTIC's DIRECT_VIDEO mode was completely rewritten. Now it is the
+  default mode of emulation, much faster than the previous approach.
+  This version of ANTIC is also 'line-oriented' - that means video
+  emulation is accurate to single scanlines. It allows such tricks
+  like changing charset during displaying an ANTIC text mode line.
+  ANTIC's scrolling in both horizontal and vertical direction is now
+  supported in all graphics modes. Thanks Perry for all these things.
+
+o GTIA now supports all possible combinations of PMG collisions. It
+  also supports third colour (many games are much more colourful now,
+  just like they were on original Atari800). Thanks Thomas Richter and
+  Perry.
+
+o -configure now preloads the default filenames of ROM images. It also
+  presets hold_option to 1 (for game players is better not to confuse
+  them with Atari Basic). <Raster>
+
+o xcolpf1 kludge was removed (antic, gtia, rt-config files).
+o DIRECT_VIDEO support was removed (configure.c)
+o the compilation config file is named atari800.djgpp on DOS, so it
+  finally doesn't collide with atari800.cfg (config file of emulator itself)
+o sio.c opens files in binary mode - works on DOS
+
+o Atari800 monitor changes: disassembler rewritten (now recognizes all 256
+  opcodes and displays also cycles and hex codes), different (more logical?)
+  commands: [D]isassembler, [C]hange memory, dump [M]emory (previously Y, M, D)
+  <Raster>
+
+o Fixed DMACTL and GRACTL registers (difference between enabled PMG and enabled
+  DMA for PMG). <Raster>
+
+o Introduced PMG flickering (try out POKE 53248,160:POKE 704,14:POKE 53277,3).
+  <Raster>
+
+o DOS keyboard: added Ctrl-1 (stops scrolling), Ctrl-2 (bell), Ctrl-3 (EOF) and
+  HOME key clears screen, END key stands for Atari BREAK key. INSERT and DELETE
+  keys insert and delete chars or whole lines (with Shift and Control keys).
+
+
+Changes in 0.8.8
+----------------
+
+o Antic, GTIA and CPU are now synchronized. Very precise timing
+  (up to 99.87% compared to real Atari800XE) with CPU cycle counting
+  was implemented by Raster. This should be the final solution for
+  numerous DLI problems.
+
+Changes in 0.8.7
+----------------
+
+o snailmeter (speed indicator on the screen) is disabled automatically
+  when the host computer is fast enough for emulating the Atari800 at 
+  full speed.
+
+o Atari_Scanline() function was optimized - should be up to twice as fast
+  as was before.
+
+o Falcon: keyboard emulation of joystick was fixed once more. Now you can
+  hold down several keys at once and it works OK.
+
+o DOS: joystick is autodetected. If not present, keyboard emulates joy1.
+  If real joy is detected, keyboard emulates joy2. If "-joyswap" command
+  on command line is used, the joy1 and joy2 are exchanged.
+
+Changes in 0.8.6
+----------------
+
+o improved IRQ handling in CPU (CLI instruction) - now Rescue on Fractalus
+  reacts on keyboard presses
+
+o Falcon: real DMA sound with interrupt driven buffer recalculation using
+  Ron Fries POKEY 2.3
+
+o DOS: keyboard fix of HASH mark (Shift-3)
+
+o Falcon: keyboard fix of joystick emulation
+
+o DOS version starts even when sound card is not initialized (emulator is now
+  able to run under WindowsNT 4.0)
+
+o Falcon detects current video mode and doesn't touch VIDEL registers 
+  if it's 320/352/384x240x8bp (see the -resolution switch) - Atari800 should
+  now run on RGB monitors as well.
+
+o fixed little typo in BACK_SLASH (thanks Perry)
+
+o improved DOS and Falcon keyboard emulation (common KEYPRESSED and SHIFT_KEY)
+  DOS version now recognizes extended keys properly - joystick emulation is OK
+  (Chimera, BruceLee and others are now playable)
+
+o XL operating system is turned on in Coldstart routine.
+
+o keyboard IRQ are set only if allowed by IRQEN
+
+o DOS port emulates TAB and HELP key (HELP is mapped to F10 - not optimal,
+  should be changed to another key - perhaps F6, which is useless in XL mode)
+
+o DOS port has faster screen update with dosmemputl (Perry)
+
+o files on virtual drive are opened in binary mode (Perry)
+  and are listed in uppercase (Raster's suggestion)
+
+o fixed bug in SIO_Mount causing crashes when mounting drives in Disk management
+
+o in System menu (F1) copy font from operating system and not from shadow RAM
+  (another XL related bug fix)
+
+o added support for '\\' in file paths (see #define BACK_SLASH)
+
+Changes in 0.8.4
+----------------
+
+o fixed bug in vertical scrolling (visible for example in Archon intro) - 
+  thanks to Perry McFarlane
+
+
+o DMA sound for Falcon version (using POKEY 2.2). Buffer recalculation is
+  not interrupt driven yet.
+
+o Error messages are buffered until the original text mode is restored
+  (see #define BACKUP_MSG)
+
+o Falcon version supports up to two joysticks
+
+o Snailmeter :-) A kind of indicator for slow machines - it shows you
+  how many times is the emulator slower than real Atari800. On my
+  Afterburner (68040 @ 40 MHz) it's about three or four times slower
+  than original :-( If your machine is fast enough, the snailmeter
+  is not visible. So watch the lower bottom of screen! :-)
+
+Changes in 0.8.3
+----------------
+
+o Radek Sterba (raster@infos.cz) did a marvelous work on discovering
+  unofficial 6502 instructions. This CPU.C has implemented _all_ 256
+  opcodes! He added more than 70 unofficial instructions, many of them
+  were even unkown before. ESC code had to be changed from 0xff to 0xf2
+  (0xff is a kind of 'regular' instruction, while 0xf2 is the CIM).
+  Atari800 is the world's first 6502 emulator with full instruction set!
+  100% software compatibility with original 6502.
+
+o I've integrated his code and fixed JMP (addr) for addr crossing 
+  page boundary (6502 was 'buggy', though 65C02 should had this fixed).
+
+o IRQ variable has been changed from int to UBYTE (for C it shouldn't matter
+  and it helps in the m68k asm code).
+
+o Disk images created by XFormer and its utilities (having extension
+  .XFD or .DD) may be of double density - I implemented it in sio.c
+  (see #ifdef ORIGINAL_XFD_CODE). Tested and works (glad to get it working,
+  because I have a lot of XFD images).
+
+o In DOS/VGA version you can move the 320x200 screen around with Ctrl-Arrows
+  to see full 384x240 resolution of original Atari800. To restore the VGA
+  screen back to center press F10.
+
+o DOS/VGA version supports one real PC joystick (emulated in port 1).
+  You still can use the numeric keypad as emulated joystick - by default
+  in port 1, or in port 2 with "-joyswap" command line switch. Joystick
+  doesn't have the ghost-moves (interrupts are disabled during joy reading).
+  Also joystick is not read whenever the Atari800 wants it, but only in the
+  keyboard routine (i.e. regularly 50 times per second, basically in VBL).
+  This was important to prevent a game reading joy port too often to hang
+  or slow the emulation down (reading of PC joystick takes some time).
+
+o DOS port has finally got wonderfully clear sound, thanks to Ron Fries'
+  SoundBlaster Driver 1.2 and new, little/big-endian aware POKEY 2.2 routines.
+
+o New monitor S command for searching a value in memory.
+
+o The best news: found the reason why so many games didn't work in XL mode.
+  Fixed one MMU bug (XL didn't have TRIG2 and TRIG3 was connected to
+  cartridge) and introduced one MMU workaround (many 800-only games put
+  zero to PORTB. That's why Tapper and other games didn't work). Now the
+  compatibility ratio of Atari800 in XL/XE mode is at 97% or higher - 
+  definitely the most compatible Atari800/XL/XE emulator in the world.
+
+Changes in 0.8.2Petr
+----------------
+
+o Fixed wrong missile width (all missiles had the same width) - now River
+  Raid looks much better.
+
+o Added 28 cycles in Antic after executing DLI - it was absolutely needed,
+  because otherwise the interrupt routine was executed too late and the
+  effects (color or font change) occured with another Antic line - now
+  Pitfall II has the score displayed in numbers and not in characters.
+
+o Added several checks into SIO code for seeking() after end of file - 
+  on Falcon it caused enlarging of disk images (for example the well
+  known MENU.ATR has original size 1296 bytes, but after rebooting
+  of Atari800 the file was enlarged to 2598672 bytes). Maybe it's
+  a hidden endianess problem in SIO code? It happened on Amiga, too.
+
+o Added a method of invoking Monitor - by pressing the F8 key anytime
+  during emulation.
+
+o Added BREAK command into Monitor. Now it's possible to enter monitor,
+  use command BREAK <addr> and then CONT. The emulator then runs until
+  the PC (program counter) is exactly <addr>. Then the monitor is invoked
+  again.
+
+o DOS version has got joystick support and also sound support using Ron
+  Fries Pokey Emulation 2.0. The joystick is OK, but the sound is not
+  clear - need to change to interrupt driven sound buffer generating.
+
+o Atari800 has been ported to Atari Falcon (32-bit machine with MC68030
+  or MC68040 and flexible graphics processor). Besides the port this
+  Falcon version contains special CPU 6502 emulation written in pure
+  MC68030 assembler by Empty Head (Karel Rous), special very fast routines
+  for chunky2planar conversion (written by Douglas Little @ Black Scorpion)
+  and special code for VIDEL programming (provided by Douglas as well).
+  The keyboard and joystick emulation, the port itself and the fixes 
+  mentioned above were done by me, Petr Stehlik (stehlik@cas3.zlin.vutbr.cz).
+
+Changes in 0.8.2David
+----------------
+
+o New Monitor READ command to load file into memory.
+o New Monitor COLDSTART command to perform a coldstart.
+o New Monitor WARMSTART command to perform a warmstart.
+o New Monitor F command to fill memory range with a value.
+o Prevention of "config.h" being included during compilation for Amiga.
+o Improved MS-DOS keyboard handling. The most noticable difference is
+  that the keypad joystick emulation now returns to centre when the
+  key is released.
+o Re-instated replacement OS - Allows Defender and Star Raider to
+  run without the Atari OS Roms.
+o Added Atari Falcon Support - Thanks to Petr Stehlik.
+o NAS (Network Audio System) support is now obsolete. The entries have
+  been removed from the makefile and the intention is to remove the
+  obsolete code before the next release.
+
+Changes in 0.8.1
+----------------
+
+o Added -private_cmap flag for X11 version.
+
+o Correction to handling of 6502 V flag during ADC and SBC operations.
+
+Changes in 0.8.0
+----------------
+
+o Added Ron Fries Pokey Emulation routines for sound in Linux.
+  A million thanks to Ron for releasing these routines - I've
+  put off using sound for ages but it took less than an evening
+  to add sound using these routines :-)
+
+  Sound is setup for Linux using /dev/dsp but it also seems to
+  produce something using /dev/audio, which leads me to believe
+  that it should work on most Unix boxes with a little work.
+  Patches welcomed :-)
+
+  In order to support sound I've added a few new command line
+  options:-
+
+  -sound and -nosound do what you'd expect.
+
+  -dsp_divisor takes a decimal value which alters the quality of
+               the sound output. It is used to work out how much
+               sound should be created each time the screen is
+               refreshed. Ideally it should be 50 (PAL) or 60 (NTSC)
+               but I've found that the best value to use is about
+               5 less than the emulators screen refresh rate WITH
+               SOUND DISABLED. If the values is to high you will
+               get gaps in the sound. If the value is to low the
+               emulator will run slower than it should.
+
+               I strongly suggest you experiment with this parameter
+               in order to get both the best sound and performance.
+
+o Support for an Experimental New Cartridge Format - with the use of
+  OSS Super Cartridges there is no way of automatically
+  distinguishing standard 16K cartridges from the various Super
+  Cartridges. Hopefully this format will do for cartridges what ATR
+  files did for disk images. Feedback and view would be welcomed
+  especially from the other Emulator Authors.
+
+  The current format is :-
+
+  first 4 bytes containing 'C' 'A' 'R' 'T'.
+  next 4 bytes containing cartridge type in MSB format.
+
+    Type 1 - Standard 8K Cartridge
+    Type 2 - Standard 16K Cartridge
+    Type 3 - OSS Super Cartridge (I heard rumours that there are two
+             different types of OSS Cartridges)
+    Type 4 - Atari 5200 Cartridge
+
+    Note: There is probably a case for extra cartridge types
+          indicating the system that needs to be emulated.
+          e.g. Standard 8K Cartridge (800 Mode Only).
+
+  next 4 bytes containing cartridge checksum in MSB format (ROM only).
+  next 4 bytes are currently unused.
+  followed immediately with the ROM data, typically 8, 16 or 32K.
+
+  In the next version I'm intending on adding:-
+    32 bytes for Cartridge Name
+    32 bytes for Cartridge Serial Number
+    32 bytes for Manufacturer
+
+  The current version of the emulator includes options in the
+  Cartridge Management screen to Create Cartridges in the above
+  format but be warned this format is likely to change.
+
+Changes in 0.7.1
+----------------
+
+o Note: I now consider the new Menu System that runs in the Emulated
+        Atari's window to be the prefered User Interface. I have no
+        intention of doing any further development for XVIEW
+
+o Cartridge Management added to Menu.
+
+o Removed FFP Code.
+
+Changes in 0.7.0
+----------------
+
+o F1 enters Menu System at any time. ESC returns you to the previous
+  screen. Items are lcoated using the cursor keys and selected by
+  either RETURN, SPACE, TAB or BACKSPACE. In most cases these keys
+  can be used interchangeably, the exception is in the Disk Management
+  Screen where RETURN is used to select a new disk and SPACE, TAB and
+  BACKSPACE are used to eject a disk - If there is no disk in the
+  virtual drive then SPACE, TAB and BACKSPACE will switch the drive
+  off (Useful for Shamus).
+
+o X11, SVGALIB & DOS - F5 is now Warmstart and Shift F5 is Coldstart.
+
+o X11 - F8 Single Shot Screen Dump, Shift F8 continuous Screen Dumps.
+
+o MS-DOS version runs about three times quicker now that the emulator is
+  synchronising with a high resolution timer.
+
+o MS-DOS version resets the screen back to text mode when finished.
+
+Changes in 0.6.2
+----------------
+
+o Antic Modes 2, 3 and f now display the normal Atari Colour and
+  Luminance by default. Extended Antic Modes 2, 3 and f are enabled
+  by starting the emulator with the "-xcolpf1" command line option.
+  This allows two completely different colours to be displayed in
+  these modes - as previously.
+
+o Improved Run-Time Configuration. Starting emulator with the "-configure"
+  command line option allows configuration of several items:-
+
+     1. Location of OS Roms
+     2. Default Directory for Disk Images
+     3. Default Directory for ROM Images
+     4. Default Directory for H1, H2, H3 and H4 pseudo devices
+     5. Command Print File (for Printer Support)
+     6. Default Screen Refresh Ratio
+     7. Default Startup System (OS/A, OS/B, XL, XE, 5200)
+     8. Default TV Mode (PAL, NTSC)
+     9. Hold Option during Coldstart
+    10. Enable C000-CFFF RAM in Atari 800 mode
+    11. Enable SIO Patch
+    12. Enable FFP Patch
+    13. Enable Extended COLPF1 (Two true colours in Antic Modes 2, 3 & F)
+
+  The emulator writes a file called "atari800.cfg" in your default
+  directory. When reading the configuration the emulator first checks
+  to see if you've specified a configuration on the command line with
+  the "-config" option otherwise it first tries to read a configuration
+  file from your default directory, failing this it then tries to read
+  a configuration file from "/etc/atari800.cfg".
+
+o JoyMouse for Toshiba Portables running SVGALIB - Probably also
+  suitable for Trackball devices with minor modifications.
+
+Changes in 0.6.1
+----------------
+
+*** IMPORTANT MESSAGE for EXISTING Users of Atari800 (Source Versions)
+
+You will need to make some changes during the sytem configuration
+stage - the emulator now expects the full path to each of the system
+ROM images to be explicitly stated. If you don't have all the ROM
+images then just pretend you have!
+
+o FPS and SIO Monitor are no longer compile time configuration options.
+  Enabled by "-fps" or "-sio" command line option or via an XVIEW
+  pulldown menu.
+o Motif fileselector retains state from one invocation to the next.
+o Configuration program detects if longwords need to be aligned.
+o Modification to X11 Paddle Emulation.
+o Removed hardcoded paths in MOTIF code.
+o Various fixes for curses mode.
+o Correction to Colours in Antic Modes 4&5 causing Incorrect colours
+  in Rally Speedway, Galactic Chase and Mr. DO)
+o Disabled DiskChange KEY (F8) in X11 version.
+o Added "-nobasic" command line parameter.
+o Added "-osa_rom", "-osb_rom", "-xlxe_rom", "-5200_rom" and "-basic_rom".
+  These command line options are used to specify the location of
+  various system ROMs on mis-configured systems or binary distributions.
+
+Note: To prevent cluttering up the CHANGES file all credits are listed
+      in the CREDITS file.
+
+Changes in 0.6.0
+----------------
+
+- Emulator can now be compiled for DOS using the DJGPP port of GCC (Thanks
+  to Ivo van Poorten)
+
+Thanks to Maximum Entropy for the following Changes:-
+- Implementation of Disable Drive menu item for Motif.
+- Fixed scrolling problem for machines that can't access longwords on word
+  boundaries (e.g. SGI and SPARC).
+- Added FPS Monitor to X11 and Motif versions.
+- Changes to pattern matching for H: device.
+
+Changes in 0.5.5
+----------------
+
+Thanks to Maximum Entropy for the following Changes:-
+- Various corrections to MOTIF code.
+- MOTIF callbacks for Insert Disk, Eject Disk and Insert ROM
+- Bug Fixes in sio.c
+- Bug Fix to devices.c allowing DOS 2.5 to get a directory of H:
+- Bug Fix to monitor.c (EOF on INPUT + Blank Lines)
+- Undocumented commands added to monitors HELP command.
+
+Changes in 0.5.4
+----------------
+
+- Made Emulator C++ Friendly.
+- BASIC version has not been working since CPU cycles were allocated during
+  scanlines processing. This problem was caused because the BASIC version
+  doesn't generate any scanlines and therefore didn't execute any
+  instructions. This version fixes the problem.
+
+Changes in 0.5.3
+----------------
+
+- Removed GetWord macro from cpu.c
+- Added XVIEW option to disable drive (via SIO_DisableDrive()). This
+  allows SHAMUS to work. The drive is automatically re-enabled next
+  time a disk is inserted.
+
+Changes in 0.5.2
+----------------
+
+- Made CPU timing more accurate: It now issue 114 clock cycles per scanline
+  instead of 48 instructions.
+- Removed obsolete functions: GetBinaryWord() and BinaryLoad().
+- Handle PORTA Direction Control Register. Fixes Joystick problem in Caverns
+  of Mars 1.
+- The atari_basic array was incorrectly defined in pia.c as [8129]. This
+  has now been corrected to [8192] (Thanks to Chris Palmer).
+
+Changes in 0.5.1
+----------------
+
+- Changed handling of CONSOL for X11 versions - previously it was hard
+  to start some games.
+- Changed address of 5200 POKEY chip. The information I have states that
+  it is located in page $eb, but evidence in a disassembled cart suggests
+  its at $e8. Of course it could appear in both pages, does anyone
+  know for sure?
+- CPU time allocation is now performed entirely within "antic.c". This is
+  a pre-condition for switchable PAL/NTCS modes.
+- Compile time configurable to either PAL [default] or NTCS system.
+- "-countdown" option has been removed.
+
+Changes in 0.5.0
+----------------
+
+- Simplified interface to CPU module.
+- DIRECT_VIDEO now works with PMG collision detection. This option increases
+  performance by about 28% but can result in different colours being displayed.
+  This is because this option relies on COLPF0, COLPF1, COLPF2, COLPF3 and
+  COLBK all having different values, hence the emulator sometimes modifies
+  the colours :-( This option can be enabled during the configuration phase.
+- Correction to ANTIC Mode 5 Vertical Scrolling.
+- Correction to PMG DMA Code - Demon Attack now works OK.
+- Added code to limit the emulator to 50fps - this will not have any
+  effect if your machine can't run the emulator greater than 50fps.
+  F10 in X11, XVIEW, MOTIF and SVGALIB versions toggles the limit on/off.
+  When the limit is off the emulator will go as fast as it can.
+- Path to directory containing the OS ROM images is now defined during
+  the configuration phase (Declaration of ATARI_LIBRARY has been removed
+  from the Makefile).
+- Correction to handling of PMG DMA - Pitfall II now Works.
+- The unused bits in PMBASE are now ignored correcting errors in Atari Chess
+  and Frogger.
+
+Changes in 0.4.5
+----------------
+
+- Added a compile time configuration option to control the default
+  screen refresh rate. In previous version of the emulator the default
+  rate has been 4 frame: draw 1 skip 3. From this version you will
+  be prompted for the default during the compile stage (except VMS and
+  AMIGA which still default to 4). A value of 1 is required for the
+  most accurate emulation. Values other than one can produce some
+  collision detection problems on a few programs (e.g. Burried Bucks).
+- Split Custom Chip code into seperate files.
+- Added 5200 Emulation Code - Runs program but needs modifications to
+  support 5200 controllers. The 2K OS ROM must be called "atari5200.rom"
+  and placed in the same directory as the other OS ROMS.
+- Linux Joystick enabled by configuration program. There are nolonger
+  any makefile targets containing "joystick".
+- Removed code relating to Emulated Operating System.
+- Added option that displays the number of Frames per Second. This option
+  is enabled within the configuration program and currently only works
+  with the XVIEW version.
+
+Changes in 0.4.4
+----------------
+
+- SpartaDOS 3.2 works for both Read and Write Access.
+- Alternate Reality "The City" now works.
+- Added interrupt timings for Invalid SIO commands.
+- Support for Direct Serial I/O Write and Put sectors commands.
+- Correction for Double Density ATR files.
+
+Changes in 0.4.3
+----------------
+
+- Corrected a Bug that prevented DOS 2.5 from copying files to/from H:
+- Re-instated F8 Disk Change function for non XVIEW/MOTIF/AMIGA Systems.
+
+Changes in 0.4.2
+----------------
+
+- Test code for faster screen generation, enabled by defining DIRECT_VIDEO
+  within "atari_custom.c". It needs a little more thought with respect to
+  collision detection, hence it is disabled by default.
+- Better PMG Priority Handling.
+- Tidied up code accessing hardware registers
+- Changed handling of B, D and I flags.
+- Changed handling of NMIs.
+
+Changes in 0.4.1
+----------------
+
+- Flashes background colour while performing direct Serial I/O
+- Minor optimisation to Player/Player collision detection
+- Minor changes in CPU emulation
+- Correction to new cartridge code causing it to fail under XL/XE
+  emulation (Thanks to Neil Shipp)
+- New targets in the Makefile for freebsd systems (Thanks to Ivo
+  van Poorten)
+
+Changes in 0.4.0
+----------------
+
+- Added MOTIF User Interface
+- Support for DEC-Windows under VMS (Thanks to Chris F Chiesa)
+- Removed dependency on 'ncycles' global variable.
+- Support for direct access to serial port hardware - The emulator will
+  now run Alternate Reality "The Dungeon" (I haven't tried the others)
+- Modified handling of XL/XE memory.
+- Fixed the GTIA modes which broke after X Window shared memory support
+  was added in version 0.3.0
+- Correction allowing Montezumas Revenge to work again.
+
+Changes in 0.3.3
+----------------
+
+- New System menu in XVIEW version allowing selection of operating
+  system etc.
+- Amiga: Iconify working.
+- Amiga: System menu contains options for Insert ROM, Remove ROM,
+  Enable PILL, Selection of Operating System and all previous disk
+  options.
+- Amiga: Help menu option is now working using Multiview.
+
+Changes in 0.3.2
+----------------
+
+- Modified BRK instruction to take account of the I flag. The BRK
+  instruction is ignored if the I flag is set.
+- Added all unofficial NOP opcodes.
+- New cartridge handling. The XVIEW version provides menu items
+  enabling the insertion and removal of cartridges.
+
+Changes in 0.3.1
+----------------
+
+- Defined PRINT_COMMAND in devices.c for Amiga
+- Minor optimisation to PMG handling
+- Modified DLI Handling and ScanLine processing
+
+Changes in 0.3.0
+----------------
+
+- Support for Atari 130XE memory banks (Antic currently accesses the
+  same bank as the CPU)
+- XVIEW Exit item on the Disk menu.
+- Printer device calls tmpnam() to allocate a temporary filename for
+  the spool file.
+- XView version didn't enable HELP key for XL and XE emulation.
+- X11 Backspace keys works in the same ways as the Delete key.
+  (Thanks to Cyrus Malek)
+- Reset and Coldstart now work during XL and XE emulation.
+- Added OK button to XVIEW controller and performance dialog boxes.
+- Optional support for X11 Shared Memory Images resulting in a 32%
+  speed improvement. This option can only be used in conjunction
+  with the small screen display. Type make by itself to obtain
+  the new list of targets. "-shm" target extension enables this
+  option.
+- Simple configuration program to avoid editing the Makefile as ofter.
+  make will invoke it the first time and afterwards "make config" can
+  be used. It currently handles the directories for the H: device, the
+  disk image directory for the XVIEW file chooser and the command used
+  to send a file to the printer. The print command should contain a %s
+  character sequence where a filename is expected (only the first %s
+  is relevant).
+
+Changes in 0.2.7
+----------------
+
+- Renamed atari_h_device.c to a more general devices.c
+- Emulator (private) opcode ESCRTS ($d2) added to support patching of OS.
+- Printer device supported via Unix lpr command.
+- Moved from RCS to CVS and added rcs Id keyword to all C files.
+- Emulated OS: Better handling of Keyboard and ATASCII to screen
+  code conversion. Editor uses LMARGN, RMARGN, ROWCRS and COLCRS.
+- Many other changes to EmuOS including implementation of SETVBV
+  COLDSV and WARMSV.
+- Detection of X11 server supporting the MIT Shared Memory Extension in
+  preperation for shared memory pixmaps.
+- Corrected bug in H: device (filename extraction routine).
+
+Changes in 0.2.6
+----------------
+
+- Corrected calculation of number of sectors and reading of double
+  density ATR files (Thanks to Preston Crow)
+- Correction for Linux ELF systems.
+- XVIEW and NAS work under Linux/ELF
+- Default directory for XVIEW Disk File Chooser is set within the
+  Makefile. By default it is pointing to /usr/local/lib/atari/DISKS
+- Corrected bug in Missile 0 to Playfield collision detection.
+- Corrected WSYNC bug (multiple stores to WSYNC during one scanline).
+  River Raid now runs correctly.
+- -emuos to enable emulated operating system. Users without the
+  necessary atari OS ROMs can use this option to boot disk images/ROMs.
+  Currently this is very experimental and runs very little without
+  problems. Defender runs perfectly but if you haven't got the OS it's
+  unlikely you'll be able to get this either!
+- H0: device accesses the current directory on your Unix Machine.
+- H1: through H4: can access four directories specified either within
+  the Makefile or via the -H1, -H2, -H3 and -H4 command line options.
+  By default they are set to /usr/local/lib/atari/Hx where x is 1, 2,
+  3 or 4.
+- H5: through H9: duplicate H0 through H4 but have automatic ATASCII
+  to ASCII translation. They are not suitable for binary files.
+- All files accessed via the H: device have Unix filenames consisting
+  entirely of lowercase letters.
+
+Changes in 0.2.5
+----------------
+
+- Network Audio System support on Unix Systems [incl. Linux]. Waveform
+  can be selected via the -sinewave or -squarewave options. At the
+  moment it doesn't support the Atari Distortion values and switches
+  channels using distortion off. This is available in XVIEW, X Window
+  and Linux SVGALIB versions. The Network Audio System is freely
+  available on the Internet - I used nas-1.2p2.tar.gz. Any Linux XVIEW
+  version do not work when built with the Network Audio System.
+  *** See BUGS file for more information ***
+- Support for /dev/sequencer removed since it didn't look like it
+  would ever produce satisfactory results.
+- Introduced -help option that lists all options available in the
+  emulator.
+- Added LAX unofficial opcodes
+- Corrected Vertical Fine scrolling in Antic Mode 7.
+- Enhanced DLIST command in "monitor.c" which now displays the display
+  list using mnemonics.
+- Updated VMS command file.
+
+Changes in 0.2.4
+----------------
+
+- Corrected mask in Atari800_GetByte() and Atari800_PutByte()
+- In Atari800_PutByte(), only switch on cartridge type when an
+  access is made to page $d5
+- Screen generation using word access where possible.
+- merged main.c with atari.c
+- Fixed SVGALIB Escape and cursor keys.
+- Emulated Floating Point Library which performs floating point
+  arithmetic directly on your host computer - bypasses 6502 CPU
+  emulation. Enabled by the -ffp option.
+
+Changes in 0.2.3
+----------------
+
+- ADC and SBC functions are nolonger implemented as functions.
+- 6502 PC, S, A, X, and Y register now handled using local
+  variables. Copied to global variables on exit from cpu and
+  restored on re-entry.
+- Took advantage of a GCC feature: goto array[opcode]. Other compilers
+  still use a switch statement.
+- Amiga: DisplayScreen() tidied up
+- Added DLIST command to monitor. This command shows the address of
+  the display list (from hardware registers).
+- Major recode of all Antic Graphics Modes. Now allows Horizontal and
+  Vertial fine scrolling.
+- Added an -interlace option to the SVGALIB version, giving a
+  performance increase of about 10%. You would use this option to
+  increase the speed of programs that must be run with a screen
+  refresh rate of 1 (e.g. Burried Bucks)
+- In the SVGALIB version, the F11 and F12 keys can be used to modify
+  the vertical positioning of the emulated screen. F11 moves the screen
+  down while F12 moves the screen up.
+- Corrected a BUG causing River Raid to have corrupt screen display.
+
+Changes in 0.2.2
+----------------
+
+- Made GetByte, GetWord and PutByte macros local to cpu.c
+- Added some 386 inline asm() for some 6502 addressing modes
+- Simplified Keyboard Handling
+- Assembly routines for Amiga AGA screen handling
+
+Changes in 0.2.1
+----------------
+
+- Created a new Makefile for Unix. The Amiga support is now in
+  Makefile.amiga
+- Sorry, but I renamed the ATARI800 environment variable to ATARI_LIBRARY
+  which points to /usr/local/lib/atari by default.
+- Control + Shift + Key combination for Linux SVGALIB implementation.
+- SVGALIB version can be restarted after entering the monitor.
+- HELP Key available in XL/XE mode
+- Optional XVIEW (V3) Interface for X Window version. Allows disk changes
+  using a file selector, controller configuration and access to performance
+  variables.
+- BREAK Key fixed
+- PC Joysticks can be used with Linux (svgalib, x11 and xview) through the
+  /dev/js0 and /dev/js1 devices. Second button activates the space bar
+  which is very useful in Defender :-) Build with "make <system>" where
+  <system> is one of:- linux-x11-joystick, linux-xview-joystick or
+  linux-svgalib-joystick
+- X11 Joystick emulation using keyboard re-implemented. Straight X11 can
+  use either numeric keypad or cursor keys + space. XVIEW can only use
+  cursor keys + space (Problem using keypad in xview!)
+- Disk selector for Amiga version + controller configuration menu
+- Started code to emulate SERIN and SEROUT registers. At the moment this
+  is ongoing and does not work. New startup option -nopatch disables the
+  SIO patch leaving the normal SIO routine in place.
+
+Changes in 0.2.0
+----------------
+
+- Separated Playfield Scanlines from Player Missile Scanlines
+- Corrected playfield colour errors in Antic modes 8 & 10
+- Horizontal Fine Scrolling
+- Playfield and Player/Missile Priorities
+- Allow Emulator to run either as an Amiga Screen or Window
+- Added Paddle support for Amiga
+
+Changes in 0.1.9
+----------------
+
+- Corrected bug in IRQST and IRQEN
+- Corrected minor bug in player missile collision detection
+- Amiga version is now full screen + Menus
+- Faster disk I/O
+- Added ATARI800 environment variable. This allows the emulator to be
+  run from different directories. If ATARI800 is unset it will still
+  try to load the OS images from object/ below the current working
+  directory.
+- colours.h replaces colours.dat
+- Added man page.
+- New way of handling Joysticks, Triggers, Paddles and Console Keys
+- Corrected handling of CHBASE which was causing K-RAZY ANTIKS to
+  display garbage.
+- Corrected handling of VCOUNT which was causing screen handling
+  errors in Star Raiders (galactic map) and Henri (game screen).
+- Added Sound API. A test sound implementation is available for
+  the Linux SVGALIB version via /dev/sequencer - It's not very good
+  and has only been used to test the API. It is enabled by starting
+  the program with the -sound option. Listen to the title screens
+  of Necromancer, K-Razy Antiks and Henri (these are the best
+  I've heard).
+- argc and argv are passed to the platform specific initialisation
+  code - Atari_Initialise(). This allows platform specific options
+  like -sound on the Linux SVGALIB version.
+- Extra Amiga options -ocs -ecs and -aga. Currently the default is
+  AGA. The -ocs and -ecs have been tested on an A1200 with the
+  OCS and ECS emulation modes enabled. At the moment it is not
+  guaranteed to work on real OCS or ECS equiped machines since it
+  has only been tested under Workbench 3.0. Hopefully someone will
+  provide some feedback.
+- Another two Amiga options -grey and -colour. The -grey option
+  produces a grey scale display on OCS, ECS and AGA machines. The
+  -colour option produces a full colour display on AGA machines and
+  up to 32 simultaneous colours on OCS and ECS machines.
+- The DOUBLE_SIZE compilation flag for the X11 version has been
+  replaced by a runtime options. The runtime options are -small,
+  -large and -huge.
+
+Changes in 0.1.8
+----------------
+
+- Allows direct use of GRAFP0, GRAFP1, GRAFP2, GRAFP3 and GRAFM without
+  using DMA.
+- -rom16 option to load standard 16K ROMs.
+- -a option to load object/atariosa.rom
+- -b [default] option to load object/atariosb.rom
+- Simplified screen generation for host - Player missile graphics
+  collision detection has been moved into 'atari_custom.c'
+- Corrected read from PORTB (XL/XE emulation)
+- GTIA support for *all* antic modes.
+  i.e. GTIA can be enabled in graphics mode 0 (antic mode 2) just like
+       a real 800. POKE 623 with 64, 128 or 192 to test.
+- Amiga version can be compiled using either DICE C or GNU C - see Makefile
+
+Changes in 0.1.7
+----------------
+
+- Issue cpu cycles during screen update (corrects VCOUNT problem)
+    As a result DLI are not occuring on the correct mode line.
+- Support for 256 bytes/sector ATR files
+- Handle Insert, Delete and Tab keys properly
+- Handle Shift + Control + A-Z properly (X11 only)
+- Cartridge support tidied up (Thanks to Dave Bennett)
+
+Changes in 0.1.6
+----------------
+
+- Correct Colours (Thanks to Chris Lam)
+- Fetch correct number of screen bytes with horizontal scrolling enabled
+- Speed improvements for Antic Display Modes
+- Support for ATR files (128 bytes sectors only)
+- Support for XL/XE ROM (Reset etc. do not work???)
+- Corrected Bug in BCD SBC instruction.
+- Added X11 window Expose event (Thanks to Ivo van Poorten)
+- Control characters within CURSES (Thanks to Ivo van Poorten)
+- Improved Portability
+- Remove '-b' flag (Use -rom object/ataribas.rom instead)
+- Graphical Support for Amiga 1200
+- Faster 6502 Emulation
+- X11 Joystick emulation now uses the mouse
+
+Changes in 0.1.5
+----------------
+
+- CURSES text only mode (Support for various terminals)
+- Display list jump instruction corrected.
+- Fixed SIO module (It didn't update DSTATS)
+
+Changes in 0.1.4
+----------------
+
+- Changed GetByte and PutByte to macros
+- Added SVGALIB support for Linux which is much quicker than X11.
+- Added support for OSS Super Cartridges (Thanks to Dave Bennett)
+- -rom option to specify alternative cartridges
+- -oss option to specify alternative OSS Super Cartridges
+
+Changes in 0.1.3
+----------------
+
+- Compilation option for double size screen
+- Trigger now initialises to not pressed
+- Joystick now initialises to central
+- Fifth Player support added
+- Support for Paddle 0
+- Preparation for changing GetByte and PutByte to macros.
+
+Changes in 0.1.2
+----------------
+
+- Now include <stdlib.h>  in atari_custom.h
+
+- Resets count to countdown as soon as it reaches zero. This was causing
+  problems with the RESET Key - count went negative.
+
+- Removed XImage structure. I am now updating only the pixels that have
+  changed within a Pixmap. XCopyArea is used to move the Pixmap onto
+  the Window. XCopyArea is not called if no pixels are changed. As a
+  result I am trying a higher refresh rate.
+
+- Correction for BASIC version - I left some X11 stuff in resulting in
+  unresolved sybols.
+
+- Remove unused status variable from atari_h_device.c
+
+- Added some test Amiga Intuition Code - not usable (No Colour or Keyboard)
+  It manages to get the 'READY' prompt up! Atari Basic Blue is one colour
+  and everything else is the other. When keyboard support is added you
+  will be able to use Atari Basic.
+
+- Registers are now allocated variables within atari_custom.c. They are
+  nolonger stored in main memory area.
+
+Changes in 0.1.1 
+----------------
+
+- Outputs an error message when ROM images are not available.
+
+Version 0.1.0
+-------------
+
+- Initial Release

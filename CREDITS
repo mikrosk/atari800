@@ -1,0 +1,121 @@
+This is the list of people who have contributed to project
+
+Thanks go to :-
+
+Ron Fries
+
+- For releasing a library of routines providing Pokey Sound
+  Emulation.
+
+Alex Hornby <alex@zetnet.co.uk>
+- Wrote the Virtual 2600 Emulator from which I took some code
+  to access the /dev/dsp device.
+
+Dave Bennett <bennett@halcyon.com>
+
+- Code enabling the use of OSS super cartridges
+- Correction to display list jump instruction
+- Tidied cartridge code up
+
+Chris Lam <lamcw@sun.aston.ac.uk>
+
+- Lookup table containing RGB values for each Atari Colour
+
+Ivo van Poorten <ipoorten@cs.vu.nl>
+
+- Added X11 window Expose Event
+- Made hardware registers repeat within their page.
+- Control Characters in CURSES version
+- Makefile targets for freebsd systems
+- Modification to Curses character attributes handling (for freebsd)
+- Ported Emulator to DOS using DJGPP.
+
+Stephen Firth <stephen@signus.demon.co.uk>
+
+- Graphical Support for Amiga
+
+Rob Funk <rfunk@magnus.acs.ohio-state.edu>
+
+- Tidied up emulator abort code.
+- Case insensitive monitor commands.
+
+Preston F. Crow <preston.crow@dancer.dartmouth.edu>
+
+- Corrected calculation of ATR sectror count
+
+Cyrus Malek <Cyrus.Malek@amd.com>
+
+- Patch allowing the X11 Backspace key to work the same as the Delete
+  key.
+
+Chris F Chiesa <xetwnk@shell.portal.com>
+
+- Added code allowing emulator to run under DEC Windows.
+
+Neil Ship <nlshipp@dictator.uwaterloo.ca>
+
+- Correction to new cartridge code introduced in 0.4.0
+
+Chris Palmer <crpalmer@solo.uwaterloo.ca>
+
+- Spotted incorrect declaration of atari_basic[8129] in "pia.c". It
+  should of course be [8192].
+
+Maximum Entropy <entropy@zippy.bernstein.com>
+
+- Various corrections to MOTIF code.
+- MOTIF callbacks for Insert Disk, Eject Disk and Insert ROM
+- Bug Fixes in sio.c
+- Bug Fix to devices.c allowing DOS 2.5 to get a directory of H:
+- Bug Fix to monitor.c (EOF on INPUT + Blank Lines)
+- Undocumented commands added to monitors HELP command.
+- Implementation of Disable Drive menu item for Motif.
+- Fixed scrolling problem for machines that can't access longwords on word
+  boundaries (e.g. SGI and SPARC).
+- Added FPS Monitor to X11 and Motif versions.
+- Changes to pattern matching for H: device.
+- Motif fileselector retains state from one invocation tothe next
+- Fixed an unitialized pointer
+- Tidied up declaration of various functions.
+- Removed Warning messages when compiled with -Wall
+- Configuration program detects if longwords need to be aligned.
+- Modification to X11 Paddle Emulation.
+- Removed annoying flicker present under some X11 platforms.
+- Removed hardcoded paths in MOTIF code.
+- Various fixes for curses mode.
+
+Ed Kaminski <ekamins@ibm.net>
+- Correction of Antic 4&5 Bug affecting Galactic Chase & Mr. Do
+- Improved speed of MS-DOS version by synchronising with a high resolution
+  timer.
+- PORTB duplicated special handling of PORTA.
+
+Nathan Monson <nathan@polaristel.net>
+- Supplied correction for handling of 6502 V flag during ADC and SBC
+  operations.
+
+Petr Stehlik <stehlik@cas3.zlin.vutbr.cz>
+- Added support for Atari Falcon (port itself, sound, kbd, joy)
+- Added sound, keyboard and joystick support for DOS version
+- "Project coordinator" since v0.8.2
+
+Karel Rous <Empty Head>
+- rewrote CPU.C to optimized MC68030 assembler
+
+Radek Sterba <raster@infos.cz>
+- Added all missing CPU 6502 instructions
+- Implemented precise timing into Antic and CPU
+- Fixed PMG registers and implemented PMG flickering
+- Added full 256 opcodes support to dissasembler
+- Various DOS enhancements
+- Added emulation of 320 kB memory (Atari320XE)
+
+Perry McFarlane <ce596@freenet.toronto.on.ca>
+- Antic fix in vertical scroll
+- Complete Antic rewrite (DIRECT_VIDEO approach, but better)
+- GTIA enhancements (based on Thomas' code, but using DIRECT_VIDEO)
+- Allegro library in DOS port
+
+Thomas Richter <thor@math.tu-berlin.de>
+- GTIA collisions and third colour of players
+- new SIO code with formatting support

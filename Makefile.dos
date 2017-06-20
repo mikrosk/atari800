@@ -1,0 +1,156 @@
+CC		= gcc
+CPPFLAGS	= $(OTHER)
+CFLAGS		= -c -O2 -DGNU_C
+LD		= gcc
+LDFLAGS		=
+LDLIBS		= -lm
+
+default :
+	@echo To build the Atari 800 Emulator, type:
+	@echo make version
+	@echo .
+	@echo where version is one of
+	@echo   basic
+	@echo   pdcurses
+	@echo   vga
+	@echo . 
+	@echo To reconfigure options, type: make config
+	@echo To clean directory, type: make clean
+	@echo To install the Emulator, type:
+
+basic :
+	@make atari800 CPPFLAGS="-DBASIC" LDLIBS="-lm" OBJ="atari_basic.o sound.o"
+	@echo Finished.
+
+pdcurses :
+	@make atari800 CPPFLAGS="-DCURSES" LDLIBS="-lcurso -lm" OBJ="atari_curses.o sound.o"
+	@echo Finished.
+
+vga :
+	@make atari800 CPPFLAGS="-DVGA" LDLIBS="-lm" OBJ="atari_vga.o sound_dos.o pokeysnd.o sbdrv.o"
+	@echo Finished.
+
+#
+# ======================================================
+# You should not need to modify anything below this here
+# ======================================================
+#
+
+INCLUDES        =       Makefile \
+			config.h \
+			rt-config.h \
+			cpu.h \
+			atari.h \
+			colours.h \
+			antic.h \
+			gtia.h \
+			pokey.h \
+			pia.h \
+			devices.h \
+			monitor.h \
+			sio.h \
+			supercart.h \
+			platform.h
+
+config config.h	:	configure
+	configure
+
+configure	:	configure.o prompts.o
+	$(LD) $(LDFLAGS) configure.o prompts.o $(LDLIBS) -o configure
+
+configure.o	:	configure.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) configure.c
+
+OBJECTS =       atari.o \
+		cpu.o \
+		monitor.o \
+		sio.o \
+		devices.o \
+		antic.o \
+		gtia.o \
+		pokey.o \
+		pia.o \
+                supercart.o \
+                prompts.o \
+                rt-config.o \
+                ui.o \
+                list.o
+
+atari800        :       $(OBJECTS) $(OBJ)
+	$(LD) $(LDFLAGS) $(OBJECTS) $(OBJ) $(LDLIBS) -o atari800
+
+atari.o         :       atari.c $(INCLUDES)
+	$(CC) $(CPPFLAGS) $(CFLAGS) atari.c
+
+cpu.o           :       cpu.c $(INCLUDES)
+	$(CC) $(CPPFLAGS) $(CFLAGS) cpu.c
+
+monitor.o       :       monitor.c $(INCLUDES)
+	$(CC) $(CPPFLAGS) $(CFLAGS) monitor.c
+
+sio.o           :       sio.c $(INCLUDES)
+	$(CC) $(CPPFLAGS) $(CFLAGS) sio.c
+
+devices.o       :       devices.c $(INCLUDES)
+	$(CC) $(CPPFLAGS) $(CFLAGS) devices.c
+
+antic.o         :       antic.c $(INCLUDES)
+	$(CC) $(CPPFLAGS) $(CFLAGS) antic.c
+
+gtia.o          :       gtia.c $(INCLUDES)
+	$(CC) $(CPPFLAGS) $(CFLAGS) gtia.c
+
+pokey.o         :       pokey.c $(INCLUDES)
+	$(CC) $(CPPFLAGS) $(CFLAGS) pokey.c
+
+pia.o           :       pia.c $(INCLUDES)
+	$(CC) $(CPPFLAGS) $(CFLAGS) pia.c
+
+supercart.o     :       supercart.c $(INCLUDES)
+	$(CC) $(CPPFLAGS) $(CFLAGS) supercart.c
+
+ui.o            :       ui.c $(INCLUDES)
+	$(CC) $(CPPFLAGS) $(CFLAGS) ui.c
+
+list.o          :       list.c $(INCLUDES)
+	$(CC) $(CPPFLAGS) $(CFLAGS) list.c
+
+rt-config.o     :       rt-config.c $(INCLUDES)
+	$(CC) $(CPPFLAGS) $(CFLAGS) rt-config.c
+
+prompts.o       :       prompts.c prompts.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) prompts.c
+
+sound.o		:       sound.c $(INCLUDES)
+	$(CC) $(CPPFLAGS) $(CFLAGS) sound.c
+
+pokey11.o	:       pokey11.c $(INCLUDES)
+	$(CC) $(CPPFLAGS) $(CFLAGS) pokey11.c
+
+sound_dos.o		:       sound_dos.c $(INCLUDES)
+	$(CC) $(CPPFLAGS) $(CFLAGS) sound_dos.c
+
+pokeysnd.o	:       pokeysnd.c $(INCLUDES)
+	$(CC) $(CPPFLAGS) $(CFLAGS) pokeysnd.c
+
+atari_x11.o     :       atari_x11.c $(INCLUDES)
+	$(CC) $(CPPFLAGS) $(CFLAGS) atari_x11.c
+
+atari_svgalib.o :       atari_svgalib.c $(INCLUDES)
+	$(CC) $(CPPFLAGS) $(CFLAGS) atari_svgalib.c
+
+atari_curses.o  :       atari_curses.c $(INCLUDES)
+	$(CC) $(CPPFLAGS) $(CFLAGS) atari_curses.c
+
+atari_amiga.o   :       atari_amiga.c $(INCLUDES)
+	$(CC) $(CPPFLAGS) $(CFLAGS) atari_amiga.c
+
+nas.o           :       nas.c $(INCLUDES)
+	$(CC) $(CPPFLAGS) $(CFLAGS) nas.c
+
+clean   :
+	del configure.exe
+	del configure
+	del config.h
+	del core
+	del *.o
