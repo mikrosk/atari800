@@ -6,8 +6,32 @@
 
 #include "atari.h"
 
+extern UBYTE MEMORY_mem[65536 + 2];
+
+#ifndef MEMORY_M68K_ASM
 #define MEMORY_dGetByte(x)				(MEMORY_mem[x])
 #define MEMORY_dPutByte(x, y)			(MEMORY_mem[x] = y)
+#else	/* MEMORY_M68K_ASM */
+/* LONG addr is intetional, to spare a register used for zero-extension */
+inline UBYTE MEMORY_dGetByte (const ULONG addr) {
+	register UBYTE retvalue;
+	__asm__ (
+		"\n\tmove.b	(%1, %2.l),%0"
+		: "=d"(retvalue)
+		: "a"(MEMORY_mem), "r"(addr)
+		: "cc", "memory"
+	);
+	return retvalue;
+}
+inline void MEMORY_dPutByte (const ULONG addr, const UBYTE val) {
+	__asm__ (
+		"\n\tmove.b	%2,(%0,%1.l)"
+		: /* No outputs. */
+		: "a"(MEMORY_mem), "r"(addr), "imd"(val)
+		: "cc", "memory"
+	);
+}
+#endif	/* MEMORY_M68K_ASM */
 
 #ifndef WORDS_BIGENDIAN
 #ifdef WORDS_UNALIGNED_OK
@@ -25,8 +49,33 @@
 #endif	/* WORDS_UNALIGNED_OK */
 #else	/* WORDS_BIGENDIAN */
 /* can't do any word optimizations for big endian machines */
+#ifndef MEMORY_M68K_ASM
 #define MEMORY_dGetWord(x)				(MEMORY_mem[x] + (MEMORY_mem[(x) + 1] << 8))
 #define MEMORY_dPutWord(x, y)			(MEMORY_mem[x] = (UBYTE) (y), MEMORY_mem[(x) + 1] = (UBYTE) ((y) >> 8))
+#else	/* MEMORY_M68K_ASM, implies WORDS_UNALIGNED_OK */
+/* LONG addr is intetional, to spare a register used for zero-extension */
+inline UWORD MEMORY_dGetWord (const ULONG addr) {
+	register UWORD retvalue;
+	__asm__ (
+		"\n\tmove.w	(%1,%2.l),%0"
+		"\n\tror.w	#8,%0"
+		: "=d"(retvalue)
+		: "a"(MEMORY_mem), "r"(addr)
+		: "cc", "memory"
+	);
+	return retvalue;
+}
+inline void MEMORY_dPutWord (const ULONG addr, const UWORD val) {
+	__asm__ (
+		"\n\tmove.w	%2,d0"
+		"\n\tror.w	#8,d0"
+		"\n\tmove.w	d0,(%0,%1.l)"
+		: /* No outputs. */
+		: "a"(MEMORY_mem), "r"(addr), "g"(val)
+		: "cc", "memory", "d0"
+	);
+}
+#endif	/* MEMORY_M68K_ASM */
 #define MEMORY_dGetWordAligned(x)		MEMORY_dGetWord(x)
 #define MEMORY_dPutWordAligned(x, y)	MEMORY_dPutWord(x, y)
 #endif	/* WORDS_BIGENDIAN */
@@ -34,8 +83,6 @@
 #define MEMORY_dCopyFromMem(from, to, size)	memcpy(to, MEMORY_mem + (from), size)
 #define MEMORY_dCopyToMem(from, to, size)		memcpy(MEMORY_mem + (to), from, size)
 #define MEMORY_dFillMem(addr1, value, length)	memset(MEMORY_mem + (addr1), value, length)
-
-extern UBYTE MEMORY_mem[65536 + 2];
 
 /* RAM size in kilobytes.
    Valid values for Atari800_MACHINE_800 are: 16, 48, 52.

@@ -19,6 +19,7 @@ dnl
 dnl   You should have received a copy of the GNU General Public License
 dnl   along with Atari800; if not, write to the Free Software
 dnl   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+dnl   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 AC_PREREQ(2.57)
 AC_INIT(Atari800, 4.0.0, pstehlik@sophics.cz)
@@ -113,6 +114,7 @@ case $host_os in
         AC_DEFINE(DOS_DRIVES,1,[Define to enable DOS style drives support.])
         AC_DEFINE(SYSTEM_WIDE_CFG_FILE,"c:\\atari800.cfg",[Alternate system-wide config file for non-Unix OS.])
 		AC_DEFINE(BITPL_SCR,1,[Define to allocate the screen back buffer.])
+		AC_DEFINE(MEMORY_M68K_ASM,1,[Define to use memory access functions in optimized m68k assembly.])
         WANT_IDE="no"
         ;;
     beos)
