@@ -906,8 +906,8 @@ void MEMORY_HandlePORTB(UBYTE byte, UBYTE oldval)
 	}
 }
 
-/* Mosaic banking scheme: writing to 0xffc0+<n> selects ram bank <n>, if 
- * that is past the last available bank, selects rom.  Banks are 4k, 
+/* Mosaic banking scheme: writing to 0xffc0+<n> selects ram bank <n>, if
+ * that is past the last available bank, selects rom.  Banks are 4k,
  * located at 0xc000-0xcfff.  Tested: Rambrandt (drawing program), Topdos1.5.
  * Reverse engineered from software that uses it.  May be incorrect in some
  * details.  Unknown:  were there mirrors of the bank addresses?  Was the RAM
@@ -1217,3 +1217,10 @@ void MEMORY_HwPutByte(UWORD addr, UBYTE byte)
 	}
 }
 #endif /* PAGED_MEM */
+
+UNALIGNED_STAT_DEF(Screen_atari_write_long_stat)
+UNALIGNED_STAT_DEF(pm_scanline_read_long_stat)
+UNALIGNED_STAT_DEF(memory_read_word_stat)
+UNALIGNED_STAT_DEF(memory_write_word_stat)
+UNALIGNED_STAT_DEF(memory_read_aligned_word_stat)
+UNALIGNED_STAT_DEF(memory_write_aligned_word_stat)

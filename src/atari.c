@@ -749,7 +749,7 @@ int Atari800_Initialise(int *argc, char *argv[])
 		|| !AF80_Initialise(argc, argv)
 #endif
 #ifdef BIT3
-		|| !BIT3_Initialise(argc, argv) 
+		|| !BIT3_Initialise(argc, argv)
 #endif
 #ifdef NTSC_FILTER
 		|| !FILTER_NTSC_Initialise(argc, argv)
@@ -855,7 +855,7 @@ int Atari800_Initialise(int *argc, char *argv[])
 		AF80_InsertRightCartridge();
 	}
 #endif
-	
+
 	/* Load Atari executable, if any */
 	if (run_direct != NULL)
 		BINLOAD_Loader(run_direct);
@@ -906,13 +906,6 @@ int Atari800_Initialise(int *argc, char *argv[])
 
 	return TRUE;
 }
-
-UNALIGNED_STAT_DEF(Screen_atari_write_long_stat)
-UNALIGNED_STAT_DEF(pm_scanline_read_long_stat)
-UNALIGNED_STAT_DEF(memory_read_word_stat)
-UNALIGNED_STAT_DEF(memory_write_word_stat)
-UNALIGNED_STAT_DEF(memory_read_aligned_word_stat)
-UNALIGNED_STAT_DEF(memory_write_aligned_word_stat)
 
 int Atari800_Exit(int run_monitor)
 {
