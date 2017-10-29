@@ -1086,15 +1086,28 @@ if [[ "$with_opengl" = "yes" ]]; then
     OBJS="$OBJS sdl/video_gl.o"
 fi
 
+A8_OPTION(jit-compiler,no,
+          [Use the JIT compiler; currently for the Falcon target only (default=OFF)],
+          CPU_JIT,[Define to use the CPU JIT compiler.]
+         )
+
+if [[ "$WANT_CPU_JIT" = "yes" ]]; then
+    OBJS="$OBJS cpu_jit.o"
+fi
+
 dnl Select host/target specific features...
 
 if [[ "$a8_host" = "falcon" -a "$a8_target" = "falcon" ]]; then
     A8_OPTION(falconcpuasm,no,
-              [Use m68k assembler CPU core for Falcon target (default=OFF)],
-              FALCON_CPUASM,[Define to use m68k assembler CPU core for Falcon target.]
+              [Use m68k assembler CPU core for the Falcon target (default=OFF)],
+              FALCON_CPUASM,[Define to use m68k assembler CPU core for the Falcon target.]
              )
     if [[ "$WANT_FALCON_CPUASM" = "yes" ]]; then
         OBJS="$OBJS falcon/cpu_m68k.o"
+    fi
+
+    if [[ "$WANT_CPU_JIT" = "yes" ]]; then
+        OBJS="$OBJS cpu_m68k_jit.o"
     fi
 fi
 
@@ -1179,6 +1192,7 @@ echo "-------------------------------------------------------"
 echo "Host OS...............................: $a8_host"
 echo "Target ...............................: $a8_target"
 echo
+echo "Using JIT compiler?...................: $WANT_CPU_JIT"
 if [[ "$a8_target" = default ]]; then
     echo "Interface for video...................: $with_video"
     case "$with_video" in

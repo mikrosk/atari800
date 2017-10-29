@@ -60,6 +60,9 @@
 #include <stdlib.h>	/* exit() */
 
 #include "cpu.h"
+#ifdef CPU_JIT
+#include "cpu_jit.h"
+#endif
 #ifdef ASAP /* external project, see http://asap.sf.net */
 #include "asap_internal.h"
 #else
@@ -100,7 +103,7 @@ unsigned int CPU_remember_jmp_curpos = 0;
 UBYTE CPU_cim_encountered = FALSE;
 UBYTE CPU_IRQ;
 
-#ifdef FALCON_CPUASM
+#if defined(FALCON_CPUASM)
 
 #if defined(PAGED_MEM) || defined(PAGED_ATTRIB)
 #error cpu_m68k.asm cannot work with paged memory/attributes
@@ -114,7 +117,13 @@ UBYTE CPU_IRQ;
 #error cpu_m68k.asm does not support disassembling the code while it is executed
 #endif
 
-#else /* FALCON_CPUASM */
+#ifdef CPU_JIT
+#error cpu_m68k.asm cannot work with the JIT compiler
+#endif
+
+#elif defined(CPU_JIT)
+
+#else
 
 /* Windows headers define it */
 #undef ABSOLUTE
@@ -2277,7 +2286,7 @@ void CPU_GO(int limit)
 				CPU_SetV;
 #endif
 			Z = N = A = (UBYTE) tmp;
-	    }
+		}
 		else {
 			/* Decimal mode */
 			unsigned int tmp;
