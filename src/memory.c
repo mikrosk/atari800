@@ -186,6 +186,21 @@ static void AllocMapRAM(void)
 	}
 }
 
+void MEMORY_dCopyFromMem(UWORD from, void* to, size_t size)
+{
+	memcpy(to, MEMORY_mem + from, size);
+}
+
+void MEMORY_dCopyToMem(const void* from, UWORD to, size_t size)
+{
+	memcpy(MEMORY_mem + to, from, size);
+}
+
+void MEMORY_dFillMem(UWORD addr1, UBYTE value, size_t length)
+{
+	memset(MEMORY_mem + addr1, value, length);
+}
+
 int MEMORY_SizeValid(int size)
 {
 	return size == 8 || size == 16 || size == 24 || size == 32
@@ -906,8 +921,8 @@ void MEMORY_HandlePORTB(UBYTE byte, UBYTE oldval)
 	}
 }
 
-/* Mosaic banking scheme: writing to 0xffc0+<n> selects ram bank <n>, if 
- * that is past the last available bank, selects rom.  Banks are 4k, 
+/* Mosaic banking scheme: writing to 0xffc0+<n> selects ram bank <n>, if
+ * that is past the last available bank, selects rom.  Banks are 4k,
  * located at 0xc000-0xcfff.  Tested: Rambrandt (drawing program), Topdos1.5.
  * Reverse engineered from software that uses it.  May be incorrect in some
  * details.  Unknown:  were there mirrors of the bank addresses?  Was the RAM
@@ -948,7 +963,7 @@ static UBYTE MosaicGetByte(UWORD addr, int no_side_effects)
 #ifdef DEBUG
 	Log_print("MosaicGetByte%4X",addr);
 #endif
-	return MEMORY_mem[addr];
+	return MEMORY_dGetByte(addr);
 }
 
 /* Axlon banking scheme: writing <n> to 0xcfc0-0xcfff selects a bank.  The Axlon
@@ -966,7 +981,7 @@ static void AxlonPutByte(UWORD addr, UBYTE byte)
 {
 	int newbank;
 	/*Write-through to RAM if it is the page 0x0f shadow*/
-	if ((addr&0xff00) == 0x0f00) MEMORY_mem[addr] = byte;
+	if ((addr&0xff00) == 0x0f00) MEMORY_dPutByte(addr, byte);
 	if ((addr&0xff) < 0xc0) return; /*0xffc0-0xffff and 0x0fc0-0x0fff only*/
 #ifdef DEBUG
 	Log_print("AxlonPutByte:%4X:%2X", addr, byte);
@@ -983,7 +998,7 @@ static UBYTE AxlonGetByte(UWORD addr, int no_side_effects)
 #ifdef DEBUG
 	Log_print("AxlonGetByte%4X",addr);
 #endif
-	return MEMORY_mem[addr];
+	return MEMORY_dGetByte(addr);
 }
 
 void MEMORY_Cart809fDisable(void)
@@ -1051,6 +1066,11 @@ void MEMORY_CartA0bfEnable(void)
 	}
 }
 
+void MEMORY_CopyROM(UWORD addr1, UWORD addr2, const void* src)
+{
+	memcpy(MEMORY_mem + addr1, src, addr2 - addr1 + 1);
+}
+
 void MEMORY_GetCharset(UBYTE *cs)
 {
 	/* copy font, but change screencode order to ATASCII order */
@@ -1058,6 +1078,39 @@ void MEMORY_GetCharset(UBYTE *cs)
 	memcpy(cs + 0x100, ROM_altirra_5200_os, 0x200); /* !"#$..., uppercase letters */
 	memcpy(cs + 0x300, ROM_altirra_5200_os + 0x300, 0x100); /* lowercase letters */
 }
+
+void MEMORY_SetRAM(UWORD addr1, UWORD addr2)
+{
+#ifndef PAGED_ATTRIB
+	memset(MEMORY_attrib + addr1, MEMORY_RAM, addr2 - addr1 + 1);
+#else
+	int i;
+	for (i = addr1 >> 8; i <= addr2 >> 8; i++) {
+		MEMORY_readmap[i] = NULL;
+		MEMORY_writemap[i] = NULL;
+	}
+#endif
+}
+
+void MEMORY_SetROM(UWORD addr1, UWORD addr2)
+{
+#ifndef PAGED_ATTRIB
+	memset(MEMORY_attrib + addr1, MEMORY_ROM, addr2 - addr1 + 1);
+#else
+	int i;
+	for (i = addr1 >> 8; i <= addr2 >> 8; i++) {
+		MEMORY_readmap[i] = NULL;
+		MEMORY_writemap[i] = MEMORY_ROM_PutByte;
+	}
+#endif
+}
+
+#ifndef PAGED_ATTRIB
+void MEMORY_SetHARDWARE(UWORD addr1, UWORD addr2)
+{
+	memset(MEMORY_attrib + addr1, MEMORY_HARDWARE, addr2 - addr1 + 1);
+}
+#endif
 
 #ifndef PAGED_MEM
 UBYTE MEMORY_HwGetByte(UWORD addr, int no_side_effects)
