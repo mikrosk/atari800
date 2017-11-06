@@ -6,6 +6,9 @@
 #ifdef HAVE_WINDOWS_H
 #include <windows.h>
 #endif
+#ifdef HAVE_STDINT_H
+#include <stdint.h>
+#endif
 
 /* Fundamental declarations ---------------------------------------------- */
 
@@ -21,6 +24,17 @@
 /* SBYTE and UBYTE must be exactly 1 byte long. */
 /* SWORD and UWORD must be exactly 2 bytes long. */
 /* SLONG and ULONG must be exactly 4 bytes long. */
+#ifdef HAVE_STDINT_H
+#define SBYTE int8_t
+#define SWORD int16_t
+#define SLONG int32_t
+#define UBYTE uint8_t
+#define UWORD uint16_t
+#ifndef HAVE_WINDOWS_H
+/* Windows headers typedef ULONG */
+#define ULONG uint32_t
+#endif
+#else
 #define SBYTE signed char
 #define SWORD signed short
 #define SLONG signed int
@@ -29,6 +43,7 @@
 #ifndef HAVE_WINDOWS_H
 /* Windows headers typedef ULONG */
 #define ULONG unsigned int
+#endif
 #endif
 /* Note: in various parts of the emulator we assume that char is 1 byte
    and int is 4 bytes. */
