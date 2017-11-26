@@ -38,8 +38,11 @@
 #include "antic.h"
 #include "cpu.h"
 #include "memory.h"
+#include "util.h"
 
-static const struct JIT_insn_template_t* const JIT_compiler_insn_table[256] = {
+extern void CPU_JIT_Execute(UBYTE* pCode);
+
+static const struct CPU_JIT_insn_template_t* const JIT_compiler_insn_table[256] = {
 	&JIT_insn_opcode_00, &JIT_insn_opcode_01, &JIT_insn_opcode_02, &JIT_insn_opcode_03,
 	&JIT_insn_opcode_04, &JIT_insn_opcode_05, &JIT_insn_opcode_06, &JIT_insn_opcode_07,
 	&JIT_insn_opcode_08, &JIT_insn_opcode_09, &JIT_insn_opcode_0a, &JIT_insn_opcode_0b,
@@ -173,22 +176,64 @@ static const int JIT_compiler_bytes_table[256] =
 #define UPDATE_LOCAL_REGS
 #define UPDATE_GLOBAL_REGS
 
-static UWORD* JIT_6502_to_native_pc[65536] = { 0 };
+struct JIT_block_t {
+	/* address of the first native insn in the block */
+	UBYTE* addr;
+	/* number of non-modified 6502 instructions in the block */
+	size_t current_insn_count;
+	/* the original number of 6502 instructions in the block */
+	size_t total_insn_count;
+	/* 6502 address range */
+	UWORD start_addr;
+	UWORD end_addr;
+};
+struct JIT_native_code_info_t {
+	/* pointer to the block where this insn belongs to */
+	struct JIT_block_t *block;
+	/* type of data on given 6502 address */
+	enum type_t {
+		Data_Type_None,
+		Data_Type_Insn,
+		Data_Type_OpLo,
+		Data_Type_OpHi
+	} data_type;
+};
 
-static UWORD* JitFindNativeCode(UWORD addr)
+static struct JIT_block_t *allocate_block()
 {
-	return JIT_6502_to_native_pc[addr];
+	struct JIT_block_t *block = (struct JIT_block_t *)Util_malloc(sizeof(*block));
+	memset(block, 0, sizeof(*block));
+	return block;
+}
+static struct JIT_native_code_info_t *allocate_code_info()
+{
+	struct JIT_native_code_info_t *info = (struct JIT_native_code_info_t *)Util_malloc(sizeof(*info));
+	memset(info, 0, sizeof(*info));
+	return info;
 }
 
-static UWORD* JitCompile(const UWORD pc) {
+static struct CPU_JIT_native_code_t *find_code(const UWORD pc)
+{
+	if (MEMORY_JIT_mem[pc].insn_addr == NULL) {
+		/* no code found */
+		return NULL;
+	}
+
+	/* in theory, 6502 code may jump into an operand's field, not supported for now */
+	assert(MEMORY_JIT_mem[pc].insn_info->data_type == Data_Type_Insn);
+
+	return &MEMORY_JIT_mem[pc];
+}
+static struct CPU_JIT_native_code_t *compile_code(const UWORD pc) {
 	UBYTE stop = 0;
 	UWORD addr = pc;
 	ULONG native_size = 0;
-	UWORD* native_code;
+	struct JIT_block_t *block;
+	UBYTE *code;
 
 	while (!stop) {
 		UBYTE insn;
-		const struct JIT_insn_template_t* insn_template;
+		const struct CPU_JIT_insn_template_t *insn_template;
 
 		insn = MEMORY_mem[addr];
 		insn_template = JIT_compiler_insn_table[insn];
@@ -197,9 +242,9 @@ static UWORD* JitCompile(const UWORD pc) {
 			return NULL;
 		}
 
-		if (JIT_6502_to_native_pc[addr] != NULL) {
-			/* a previous code found, don't translate anymore */
-			break;
+		if (MEMORY_JIT_mem[addr].insn_addr != NULL) {
+			/* previous code found, insert a jump and stop translation */
+			insn_template = &JIT_insn_opcode_4c;
 		}
 
 		native_size += insn_template->instance(NULL, 0, 0, 0);
@@ -210,47 +255,88 @@ static UWORD* JitCompile(const UWORD pc) {
 
 	assert(native_size > 0);
 
-	native_code = (UWORD*) malloc(2 * native_size);	/* native_size is in words */
-	if (native_code == NULL) {
-		return NULL;
-	}
+	block = allocate_block();
+	block->addr = (UBYTE*) Util_malloc(native_size);
+	block->start_addr = pc;
 
 	stop = 0;
 	addr = pc;
+	code = block->addr;
 
 	while (!stop) {
 		UBYTE insn;
 		UBYTE bytes;
 		UBYTE cycles;
 		UWORD data = 0;
-		const struct JIT_insn_template_t* insn_template;
+		const struct CPU_JIT_insn_template_t *insn_template;
+		struct CPU_JIT_native_code_t *native_code;
 
-		if (JIT_6502_to_native_pc[addr] == NULL) {
-			JIT_6502_to_native_pc[addr] = native_code;
+		native_code = &MEMORY_JIT_mem[addr];
+
+		if (native_code->insn_addr == NULL) {
+			native_code->insn_addr = code;
+			native_code->insn_info = allocate_code_info();
+			native_code->insn_info->block = block;
+			native_code->insn_info->data_type = Data_Type_Insn;
+
+			block->current_insn_count++;
+
+			insn = MEMORY_mem[addr];
+			bytes = JIT_compiler_bytes_table[insn];
+			cycles = JIT_compiler_cycle_table[insn];
+			insn_template = JIT_compiler_insn_table[insn];
+
+			if (bytes == 2) {
+				native_code++;
+				native_code->insn_addr = code;
+				native_code->insn_info = allocate_code_info();
+				native_code->insn_info->block = block;
+				native_code->insn_info->data_type = Data_Type_OpLo;
+
+				data = MEMORY_mem[addr+1];
+			} else if (bytes == 3) {
+				native_code++;
+				native_code->insn_addr = code;
+				native_code->insn_info = allocate_code_info();
+				native_code->insn_info->block = block;
+				native_code->insn_info->data_type = Data_Type_OpLo;
+
+				native_code++;
+				native_code->insn_addr = code;
+				native_code->insn_info = allocate_code_info();
+				native_code->insn_info->block = block;
+				native_code->insn_info->data_type = Data_Type_OpHi;
+
+				data = MEMORY_mem[addr+1] + (MEMORY_mem[addr+2] << 8);
+			}
 		} else {
-			/* a previous code found, let it finish */
-			return JIT_6502_to_native_pc[pc];
+			/* previous code found, jump and let it finish */
+			insn = 0x4c;
+			bytes = 0;	/* virtual instruction */
+			cycles = 0;	/* virtual instruction */
+			insn_template = JIT_compiler_insn_table[insn];
+
+			data = addr;
 		}
 
-		insn = MEMORY_mem[addr];
-		bytes = JIT_compiler_bytes_table[insn];
-		cycles = JIT_compiler_cycle_table[insn];
-		insn_template = JIT_compiler_insn_table[insn];
-
-		if (bytes == 2) {
-			data = MEMORY_mem[addr+1];
-		} else if (bytes == 3) {
-			data = MEMORY_mem[addr+1] + (MEMORY_mem[addr+2] << 8);
-		}
-
-		native_code += insn_template->instance(native_code, data, bytes, cycles);
+		code += insn_template->instance(code, data, bytes, cycles);
 
 		addr += bytes;
 		stop = insn_template->is_stop;
 	}
 
+	block->end_addr = addr;
+	block->total_insn_count = block->current_insn_count;
+
 	/* all good, whole block translated */
-	return JIT_6502_to_native_pc[pc];
+	return &MEMORY_JIT_mem[pc];
+}
+
+static void execute_code(struct CPU_JIT_native_code_t *native_code)
+{
+	assert(native_code->insn_addr != NULL);
+
+	CPU_JIT_Execute(native_code->insn_addr);
 }
 
 /* 6502 registers. */
@@ -304,31 +390,102 @@ void CPU_JIT_GO(int limit)
 	CPUCHECKIRQ;
 
 	while (ANTIC_xpos < ANTIC_xpos_limit) {
-		UWORD* native_code = JitFindNativeCode(CPU_regPC);
+		struct CPU_JIT_native_code_t *native_code = find_code(CPU_regPC);
 		if (native_code == NULL) {
-			native_code = JitCompile(CPU_regPC);
+			native_code = compile_code(CPU_regPC);
 			if (native_code == NULL) {
 				/* fatal error */
 				Atari800_ErrExit();
 			}
 		}
 
-		CPU_JIT_Execute(native_code);
+		execute_code(native_code);
 	}
 
 	UPDATE_GLOBAL_REGS;
 }
 
-void CPU_JIT_Invalidate(UWORD addr)
+int CPU_JIT_Invalidate(UWORD addr)
 {
-	// TODO; carefully, addr may point to an isn's data ([addr] = NULL)
+	struct CPU_JIT_native_code_t *native_code = &MEMORY_JIT_mem[addr];
+	if (native_code->insn_addr == NULL) {
+		return FALSE;
+	}
+
+	struct JIT_native_code_info_t *info = native_code->insn_info;
+	assert(info != NULL && info->data_type != Data_Type_None);
+
+	if (info->data_type == Data_Type_OpLo) {
+		/* process insn */
+		return CPU_JIT_Invalidate(addr-1);
+	} else if (info->data_type == Data_Type_OpHi) {
+		/* process insn */
+		return CPU_JIT_Invalidate(addr-2);
+	} else {
+		struct JIT_block_t *block = info->block;
+		int i;
+		int size;
+
+		block->current_insn_count--;
+		/* TODO: maybe a different policy? like if >= 1/3 of the block is gone? */
+		if (block->current_insn_count == 0) {
+			/* this is the last insn, release the whole block */
+			free(block->addr);
+			/* release the block info as well */
+			free(block);
+		} else {
+			/* NOTE: this assumes that native "return from subroutine" will never take more space than already allocated */
+			JIT_insn_opcode_60.instance(native_code->insn_addr, 0, 0, 0);
+		}
+
+		size = JIT_compiler_bytes_table[MEMORY_mem[addr]];
+		for (i = 0; i < size; i++) {
+			MEMORY_JIT_mem[addr+i].insn_addr = NULL;
+			free(MEMORY_JIT_mem[addr+i].insn_info);
+			MEMORY_JIT_mem[addr+i].insn_info = NULL;
+		}
+	}
+
+	return TRUE;
 }
 
 void CPU_JIT_InvalidateMem(UWORD from, UWORD to)
 {
 	UWORD addr;
-
 	for (addr = from; addr <= to; addr++) {
 		CPU_JIT_Invalidate(addr);
+	}
+}
+
+void CPU_JIT_InvalidateAllocatedCode(struct CPU_JIT_native_code_t *native_code, int count)
+{
+	int i;
+	for (i = 0; i < count; i++) {
+		struct JIT_native_code_info_t *info = native_code[i].insn_info;
+
+		if (native_code[i].insn_addr == NULL) {
+			assert(info == NULL);
+			continue;
+		}
+		assert(info != NULL);
+
+		if (info->data_type == Data_Type_Insn) {
+			struct JIT_block_t *block = info->block;
+
+			block->current_insn_count--;
+			if (block->current_insn_count == 0) {
+				/* this is the last insn, release the whole block */
+				free(block->addr);
+				/* release the block info as well */
+				free(block);
+			} else {
+				/* NOTE: this assumes that native "return from subroutine" will never take more space than already allocated */
+				JIT_insn_opcode_60.instance(native_code[i].insn_addr, 0, 0, 0);
+			}
+		}
+
+		native_code[i].insn_addr = NULL;
+		free(native_code[i].insn_info);
+		native_code[i].insn_info = NULL;
 	}
 }

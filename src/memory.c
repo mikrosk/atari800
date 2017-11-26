@@ -45,6 +45,9 @@
 #endif
 
 UBYTE MEMORY_mem[65536 + 2];
+#ifdef CPU_JIT
+struct CPU_JIT_native_code_t MEMORY_JIT_mem[65536 + 2] = { 0 };
+#endif
 
 int MEMORY_ram_size = 64;
 
@@ -77,6 +80,11 @@ map_save save_map[2] = {
 UBYTE MEMORY_basic[8192];
 UBYTE MEMORY_os[16384];
 UBYTE MEMORY_xegame[8192];
+#ifdef CPU_JIT
+static struct CPU_JIT_native_code_t jit_basic[8192];
+static struct CPU_JIT_native_code_t jit_os[16384];
+static struct CPU_JIT_native_code_t jit_xegame[8192];
+#endif
 
 int MEMORY_xe_bank = 0;
 int MEMORY_selftest_enabled = 0;
@@ -84,11 +92,19 @@ int MEMORY_selftest_enabled = 0;
 static UBYTE under_atarixl_os[16384];
 static UBYTE under_cart809F[8192];
 static UBYTE under_cartA0BF[8192];
+#ifdef CPU_JIT
+static struct CPU_JIT_native_code_t jit_under_atarixl_os[16384];
+static struct CPU_JIT_native_code_t jit_under_cart809F[8192];
+static struct CPU_JIT_native_code_t jit_under_cartA0BF[8192];
+#endif
 
 static int cart809F_enabled = FALSE;
 int MEMORY_cartA0BF_enabled = FALSE;
 
 static UBYTE *atarixe_memory = NULL;
+#ifdef CPU_JIT
+static struct CPU_JIT_native_code_t *jit_atarixe_memory;
+#endif
 static ULONG atarixe_memory_size = 0;
 
 /* RAM shadowed by Self-Test in the XE bank seen by ANTIC, when ANTIC/CPU
@@ -103,11 +119,17 @@ static UBYTE MosaicGetByte(UWORD addr, int no_side_effects);
 static void AxlonPutByte(UWORD addr, UBYTE byte);
 static UBYTE AxlonGetByte(UWORD addr, int no_side_effects);
 static UBYTE *axlon_ram = NULL;
+#ifdef CPU_JIT
+static struct CPU_JIT_native_code_t *jit_axlon_ram;
+#endif
 static int axlon_current_bankmask = 0;
 int axlon_curbank = 0;
 int MEMORY_axlon_num_banks = 0x00;
 int MEMORY_axlon_0f_mirror = FALSE; /* The real Axlon had a mirror bank register at 0x0fc0-0x0fff, compatibles did not*/
 static UBYTE *mosaic_ram = NULL;
+#ifdef CPU_JIT
+static struct CPU_JIT_native_code_t *jit_mosaic_ram;
+#endif
 static int mosaic_current_num_banks = 0;
 static int mosaic_curbank = 0x3f;
 int MEMORY_mosaic_num_banks = 0;
@@ -116,21 +138,40 @@ int MEMORY_enable_mapram = FALSE;
 
 /* Buffer for storing of MapRAM memory. */
 static UBYTE *mapram_memory = NULL;
+#ifdef CPU_JIT
+static struct CPU_JIT_native_code_t *jit_mapram_memory;
+#endif
 
 static void alloc_axlon_memory(void){
 	if (MEMORY_axlon_num_banks > 0 && Atari800_machine_type == Atari800_MACHINE_800) {
 		int size = MEMORY_axlon_num_banks * 0x4000;
 		if (axlon_ram == NULL || axlon_current_bankmask != MEMORY_axlon_num_banks - 1) {
+#ifdef CPU_JIT
+			if (jit_axlon_ram != NULL) {
+				CPU_JIT_InvalidateAllocatedCode(jit_axlon_ram, (axlon_current_bankmask + 1) * 0x4000);
+			}
+			jit_axlon_ram = (struct CPU_JIT_native_code_t *)Util_realloc(jit_axlon_ram, MEMORY_JIT_SIZE(size));
+#endif
 			axlon_current_bankmask = MEMORY_axlon_num_banks - 1;
 			axlon_ram = (UBYTE *)Util_realloc(axlon_ram, size);
 		}
 		memset(axlon_ram, 0, size);
+#ifdef CPU_JIT
+		memset(jit_axlon_ram, 0, MEMORY_JIT_SIZE(size));
+#endif
 	} else {
 		if (axlon_ram != NULL) {
 			free(axlon_ram);
 			axlon_ram = NULL;
-			axlon_current_bankmask = 0;
 		}
+#ifdef CPU_JIT
+		if (jit_axlon_ram != NULL) {
+			CPU_JIT_InvalidateAllocatedCode(jit_axlon_ram, (axlon_current_bankmask + 1) * 0x4000);
+			free(jit_axlon_ram);
+			jit_axlon_ram = NULL;
+		}
+#endif
+		axlon_current_bankmask = 0;
 	}
 }
 
@@ -138,16 +179,32 @@ static void alloc_mosaic_memory(void){
 	if (MEMORY_mosaic_num_banks > 0 && Atari800_machine_type == Atari800_MACHINE_800) {
 		int size = MEMORY_mosaic_num_banks * 0x1000;
 		if (mosaic_ram == NULL || mosaic_current_num_banks != MEMORY_mosaic_num_banks) {
+#ifdef CPU_JIT
+			if (jit_mosaic_ram != NULL) {
+				CPU_JIT_InvalidateAllocatedCode(jit_mosaic_ram, mosaic_current_num_banks * 0x1000);
+			}
+			jit_mosaic_ram = (struct CPU_JIT_native_code_t *)Util_realloc(jit_mosaic_ram, MEMORY_JIT_SIZE(size));
+#endif
 			mosaic_current_num_banks = MEMORY_mosaic_num_banks;
 			mosaic_ram = (UBYTE *)Util_realloc(mosaic_ram, size);
 		}
 		memset(mosaic_ram, 0, size);
+#ifdef CPU_JIT
+		memset(jit_mosaic_ram, 0, MEMORY_JIT_SIZE(size));
+#endif
 	} else {
 		if (mosaic_ram != NULL) {
 			free(mosaic_ram);
 			mosaic_ram = NULL;
-			mosaic_current_num_banks = 0;
 		}
+#ifdef CPU_JIT
+		if (jit_mosaic_ram != NULL) {
+			CPU_JIT_InvalidateAllocatedCode(jit_mosaic_ram, mosaic_current_num_banks * 0x1000);
+			free(jit_mosaic_ram);
+			jit_mosaic_ram = NULL;
+		}
+#endif
+		mosaic_current_num_banks = 0;
 	}
 }
 
@@ -160,15 +217,36 @@ static void AllocXEMemory(void)
 		if (size != atarixe_memory_size) {
 			if (atarixe_memory != NULL)
 				free(atarixe_memory);
+#ifdef CPU_JIT
+			if (jit_atarixe_memory != NULL) {
+				CPU_JIT_InvalidateAllocatedCode(jit_atarixe_memory, atarixe_memory_size);
+				free(jit_atarixe_memory);
+			}
+#endif
 			atarixe_memory = (UBYTE *) Util_malloc(size);
+#ifdef CPU_JIT
+			jit_atarixe_memory = (struct CPU_JIT_native_code_t *) Util_malloc(MEMORY_JIT_SIZE(size));
+#endif
 			atarixe_memory_size = size;
 			memset(atarixe_memory, 0, size);
+#ifdef CPU_JIT
+			memset(jit_atarixe_memory, 0, MEMORY_JIT_SIZE(size));
+#endif
 		}
 	}
 	/* atarixe_memory not needed, free it */
-	else if (atarixe_memory != NULL) {
-		free(atarixe_memory);
-		atarixe_memory = NULL;
+	else {
+		if (atarixe_memory != NULL) {
+			free(atarixe_memory);
+			atarixe_memory = NULL;
+		}
+#ifdef CPU_JIT
+		if (jit_atarixe_memory != NULL) {
+			CPU_JIT_InvalidateAllocatedCode(jit_atarixe_memory, atarixe_memory_size);
+			free(jit_atarixe_memory);
+			jit_atarixe_memory = NULL;
+		}
+#endif
 		atarixe_memory_size = 0;
 	}
 }
@@ -179,12 +257,39 @@ static void AllocMapRAM(void)
 	    && MEMORY_ram_size > 20) {
 		if (mapram_memory == NULL)
 			mapram_memory = (UBYTE *)Util_malloc(0x800);
+#ifdef CPU_JIT
+		if (jit_mapram_memory == NULL)
+			jit_mapram_memory = (struct CPU_JIT_native_code_t *)Util_malloc(MEMORY_JIT_SIZE(0x800));
+#endif
 	}
-	else if (mapram_memory != NULL) {
-		free(mapram_memory);
-		mapram_memory = NULL;
+	else {
+		if (mapram_memory != NULL) {
+			free(mapram_memory);
+			mapram_memory = NULL;
+		}
+#ifdef CPU_JIT
+		if (jit_mapram_memory != NULL) {
+			CPU_JIT_InvalidateAllocatedCode(jit_mapram_memory, 0x800);
+			free(jit_mapram_memory);
+			jit_mapram_memory = NULL;
+		}
+#endif
 	}
 }
+
+#ifdef CPU_JIT
+void MEMORY_dPutByte(UWORD addr, UBYTE value)
+{
+	MEMORY_mem[addr] = value;
+	CPU_JIT_Invalidate(addr);
+}
+void MEMORY_dPutWord(UWORD addr, UWORD value)
+{
+	MEMORY_mem[addr] = (UBYTE)value;
+	MEMORY_mem[addr+1] = (UBYTE)(value >> 8);
+	CPU_JIT_InvalidateMem(addr, addr+1);
+}
+#endif
 
 void MEMORY_dCopyFromMem(UWORD from, void* to, size_t size)
 {
@@ -193,11 +298,23 @@ void MEMORY_dCopyFromMem(UWORD from, void* to, size_t size)
 
 void MEMORY_dCopyToMem(const void* from, UWORD to, size_t size)
 {
+#ifdef CPU_JIT
+	if (to > 0) {
+		CPU_JIT_Invalidate(to-1);
+	}
+	CPU_JIT_InvalidateMem(to, to + size - 1);
+#endif
 	memcpy(MEMORY_mem + to, from, size);
 }
 
 void MEMORY_dFillMem(UWORD addr1, UBYTE value, size_t length)
 {
+#ifdef CPU_JIT
+	if (addr1 > 0) {
+		CPU_JIT_Invalidate(addr1-1);
+	}
+	CPU_JIT_InvalidateMem(addr1, addr1 + length - 1);
+#endif
 	memset(MEMORY_mem + addr1, value, length);
 }
 
@@ -224,6 +341,9 @@ void MEMORY_InitialiseMachine(void)
 			GTIA_TRIG_latch[3] = 0;
 	}
 	memcpy(MEMORY_mem + os_rom_start, MEMORY_os, os_size);
+#ifdef CPU_JIT
+	memcpy(MEMORY_JIT_mem + os_rom_start, jit_os, MEMORY_JIT_SIZE(os_size));
+#endif
 	switch (Atari800_machine_type) {
 	case Atari800_MACHINE_5200:
 		MEMORY_dFillMem(0x0000, 0x00, 0xf800);
@@ -705,6 +825,9 @@ void MEMORY_CopyFromMem(UWORD from, UBYTE *to, int size)
 
 void MEMORY_CopyToMem(const UBYTE *from, UWORD to, int size)
 {
+#ifdef CPU_JIT
+	CPU_JIT_InvalidateMem(to, to + size - 1);
+#endif
 	while (--size >= 0) {
 		MEMORY_PutByte(to, *from);
 		from++;
@@ -754,6 +877,11 @@ void MEMORY_HandlePORTB(UBYTE byte, UBYTE oldval)
 		/* Restore RAM hidden by MapRAM. */
 		memcpy(mapram_memory, MEMORY_mem + 0x5000, 0x800);
 		memcpy(MEMORY_mem + 0x5000, under_atarixl_os + 0x1000, 0x800);
+#ifdef CPU_JIT
+		CPU_JIT_Invalidate(0x4fff);
+		memcpy(jit_mapram_memory, MEMORY_JIT_mem + 0x5000, MEMORY_JIT_SIZE(0x800));
+		memcpy(MEMORY_JIT_mem + 0x5000, jit_under_atarixl_os + 0x1000, MEMORY_JIT_SIZE(0x800));
+#endif
 	}
 
 	/* Switch XE memory bank in 0x4000-0x7fff */
@@ -795,6 +923,10 @@ void MEMORY_HandlePORTB(UBYTE byte, UBYTE oldval)
 		        || (MEMORY_ram_size == MEMORY_RAM_320_COMPY_SHOP && (byte & 0x20) == 0))) {
 			/* Disable Self Test ROM */
 			memcpy(MEMORY_mem + 0x5000, under_atarixl_os + 0x1000, 0x800);
+#ifdef CPU_JIT
+			CPU_JIT_Invalidate(0x4fff);
+			memcpy(MEMORY_JIT_mem + 0x5000, jit_under_atarixl_os + 0x1000, MEMORY_JIT_SIZE(0x800));
+#endif
 			if (ANTIC_xe_ptr != NULL)
 				/* Also disable Self Test from XE bank accessed by ANTIC. */
 				memcpy(atarixe_memory + (antic_bank << 14) + 0x1000, antic_bank_under_selftest, 0x800);
@@ -804,6 +936,11 @@ void MEMORY_HandlePORTB(UBYTE byte, UBYTE oldval)
 		if (cpu_bank != new_cpu_bank) {
 			memcpy(atarixe_memory + (cpu_bank << 14), MEMORY_mem + 0x4000, 0x4000);
 			memcpy(MEMORY_mem + 0x4000, atarixe_memory + (new_cpu_bank << 14), 0x4000);
+#ifdef CPU_JIT
+			CPU_JIT_Invalidate(0x3fff);
+			memcpy(jit_atarixe_memory + (cpu_bank << 14), MEMORY_JIT_mem + 0x4000, MEMORY_JIT_SIZE(0x4000));
+			memcpy(MEMORY_JIT_mem + 0x4000, jit_atarixe_memory + (new_cpu_bank << 14), MEMORY_JIT_SIZE(0x4000));
+#endif
 		}
 
 		if (MEMORY_ram_size == 128 || MEMORY_ram_size == MEMORY_RAM_320_COMPY_SHOP)
@@ -820,11 +957,21 @@ void MEMORY_HandlePORTB(UBYTE byte, UBYTE oldval)
 			if (MEMORY_ram_size > 48) {
 				memcpy(under_atarixl_os, MEMORY_mem + 0xc000, 0x1000);
 				memcpy(under_atarixl_os + 0x1800, MEMORY_mem + 0xd800, 0x2800);
+#ifdef CPU_JIT
+				CPU_JIT_Invalidate(0xbfff);
+				memcpy(jit_under_atarixl_os, MEMORY_JIT_mem + 0xc000, MEMORY_JIT_SIZE(0x1000));
+				memcpy(jit_under_atarixl_os + 0x1800, MEMORY_JIT_mem + 0xd800, MEMORY_JIT_SIZE(0x2800));
+#endif
 				MEMORY_SetROM(0xc000, 0xcfff);
 				MEMORY_SetROM(0xd800, 0xffff);
 			}
 			memcpy(MEMORY_mem + 0xc000, MEMORY_os, 0x1000);
 			memcpy(MEMORY_mem + 0xd800, MEMORY_os + 0x1800, 0x2800);
+#ifdef CPU_JIT
+			CPU_JIT_Invalidate(0xbfff);
+			memcpy(MEMORY_JIT_mem + 0xc000, jit_os, MEMORY_JIT_SIZE(0x1000));
+			memcpy(MEMORY_JIT_mem + 0xd800, jit_os + 0x1800, MEMORY_JIT_SIZE(0x2800));
+#endif
 			ESC_PatchOS();
 		}
 		else {
@@ -832,6 +979,11 @@ void MEMORY_HandlePORTB(UBYTE byte, UBYTE oldval)
 			if (MEMORY_ram_size > 48) {
 				memcpy(MEMORY_mem + 0xc000, under_atarixl_os, 0x1000);
 				memcpy(MEMORY_mem + 0xd800, under_atarixl_os + 0x1800, 0x2800);
+#ifdef CPU_JIT
+				CPU_JIT_Invalidate(0xbfff);
+				memcpy(MEMORY_JIT_mem + 0xc000, jit_under_atarixl_os, MEMORY_JIT_SIZE(0x1000));
+				memcpy(MEMORY_JIT_mem + 0xd800, jit_under_atarixl_os + 0x1800, MEMORY_JIT_SIZE(0x2800));
+#endif
 				MEMORY_SetRAM(0xc000, 0xcfff);
 				MEMORY_SetRAM(0xd800, 0xffff);
 			} else {
@@ -842,6 +994,10 @@ void MEMORY_HandlePORTB(UBYTE byte, UBYTE oldval)
 			if (MEMORY_selftest_enabled) {
 				if (MEMORY_ram_size > 20) {
 					memcpy(MEMORY_mem + 0x5000, under_atarixl_os + 0x1000, 0x800);
+#ifdef CPU_JIT
+					CPU_JIT_Invalidate(0x4fff);
+					memcpy(MEMORY_JIT_mem + 0x5000, jit_under_atarixl_os + 0x1000, MEMORY_JIT_SIZE(0x800));
+#endif
 					if (ANTIC_xe_ptr != NULL)
 						/* Also disable Self Test from XE bank accessed by ANTIC. */
 						memcpy(atarixe_memory + (antic_bank << 14) + 0x1000, antic_bank_under_selftest, 0x800);
@@ -861,18 +1017,31 @@ void MEMORY_HandlePORTB(UBYTE byte, UBYTE oldval)
 		if (builtin_cart_old != builtin_cart_new) {
 			if (builtin_cart_old == NULL && MEMORY_ram_size > 40) { /* switching RAM out */
 				memcpy(under_cartA0BF, MEMORY_mem + 0xa000, 0x2000);
+#ifdef CPU_JIT
+				CPU_JIT_Invalidate(0x9fff);
+				memcpy(jit_under_cartA0BF, MEMORY_JIT_mem + 0xa000, MEMORY_JIT_SIZE(0x2000));
+#endif
 				MEMORY_SetROM(0xa000, 0xbfff);
 			}
 			if (builtin_cart_new == NULL) { /* switching RAM in */
 				if (MEMORY_ram_size > 40) {
 					memcpy(MEMORY_mem + 0xa000, under_cartA0BF, 0x2000);
+#ifdef CPU_JIT
+					CPU_JIT_Invalidate(0x9fff);
+					memcpy(MEMORY_JIT_mem + 0xa000, jit_under_cartA0BF, MEMORY_JIT_SIZE(0x2000));
+#endif
 					MEMORY_SetRAM(0xa000, 0xbfff);
 				}
 				else
 					MEMORY_dFillMem(0xa000, 0xff, 0x2000);
 			}
-			else
+			else {
 				memcpy(MEMORY_mem + 0xa000, builtin_cart_new, 0x2000);
+#ifdef CPU_JIT
+				CPU_JIT_Invalidate(0x9fff);
+				memcpy(MEMORY_JIT_mem + 0xa000, builtin_cart_new == MEMORY_xegame ? jit_xegame : jit_basic, MEMORY_JIT_SIZE(0x2000));
+#endif
+			}
 		}
 	}
 
@@ -882,6 +1051,10 @@ void MEMORY_HandlePORTB(UBYTE byte, UBYTE oldval)
 			/* Disable Self Test ROM */
 			if (MEMORY_ram_size > 20) {
 				memcpy(MEMORY_mem + 0x5000, under_atarixl_os + 0x1000, 0x800);
+#ifdef CPU_JIT
+				CPU_JIT_Invalidate(0x4fff);
+				memcpy(MEMORY_JIT_mem + 0x5000, jit_under_atarixl_os + 0x1000, MEMORY_JIT_SIZE(0x800));
+#endif
 				if (ANTIC_xe_ptr != NULL)
 					/* Also disable Self Test from XE bank accessed by ANTIC. */
 					memcpy(atarixe_memory + (antic_bank << 14) + 0x1000, antic_bank_under_selftest, 0x800);
@@ -902,12 +1075,20 @@ void MEMORY_HandlePORTB(UBYTE byte, UBYTE oldval)
 			/* Enable Self Test ROM */
 			if (MEMORY_ram_size > 20) {
 				memcpy(under_atarixl_os + 0x1000, MEMORY_mem + 0x5000, 0x800);
+#ifdef CPU_JIT
+				CPU_JIT_Invalidate(0x4fff);
+				memcpy(jit_under_atarixl_os + 0x1000, MEMORY_JIT_mem + 0x5000, MEMORY_JIT_SIZE(0x800));
+#endif
 				if (ANTIC_xe_ptr != NULL)
 					/* Also backup RAM under Self Test from XE bank accessed by ANTIC. */
 					memcpy(antic_bank_under_selftest, atarixe_memory + (antic_bank << 14) + 0x1000, 0x800);
 				MEMORY_SetROM(0x5000, 0x57ff);
 			}
 			memcpy(MEMORY_mem + 0x5000, MEMORY_os + 0x1000, 0x800);
+#ifdef CPU_JIT
+			CPU_JIT_Invalidate(0x4fff);
+			memcpy(MEMORY_JIT_mem + 0x5000, jit_os + 0x1000, MEMORY_JIT_SIZE(0x800));
+#endif
 			if (ANTIC_xe_ptr != NULL)
 				/* Also enable Self Test in the XE bank accessed by ANTIC. */
 				memcpy(atarixe_memory + (antic_bank << 14) + 0x1000, MEMORY_os + 0x1000, 0x800);
@@ -917,6 +1098,11 @@ void MEMORY_HandlePORTB(UBYTE byte, UBYTE oldval)
 			/* Enable MapRAM */
 			memcpy(under_atarixl_os + 0x1000, MEMORY_mem + 0x5000, 0x800);
 			memcpy(MEMORY_mem + 0x5000, mapram_memory, 0x800);
+#ifdef CPU_JIT
+			CPU_JIT_Invalidate(0x4fff);
+			memcpy(jit_under_atarixl_os + 0x1000, MEMORY_JIT_mem + 0x5000, MEMORY_JIT_SIZE(0x800));
+			memcpy(MEMORY_JIT_mem + 0x5000, jit_mapram_memory, MEMORY_JIT_SIZE(0x800));
+#endif
 		}
 	}
 }
@@ -941,18 +1127,31 @@ static void MosaicPutByte(UWORD addr, UBYTE byte)
 	if (newbank >= mosaic_current_num_banks && mosaic_curbank < mosaic_current_num_banks) {
 		/*ram ->rom*/
 		memcpy(mosaic_ram + mosaic_curbank*0x1000, MEMORY_mem + 0xc000,0x1000);
+#ifdef CPU_JIT
+		CPU_JIT_Invalidate(0xbfff);
+		memcpy(jit_mosaic_ram + mosaic_curbank*0x1000, MEMORY_JIT_mem + 0xc000,MEMORY_JIT_SIZE(0x1000));
+#endif
 		MEMORY_dFillMem(0xc000, 0xff, 0x1000);
 		MEMORY_SetROM(0xc000, 0xcfff);
 	}
 	else if (newbank < mosaic_current_num_banks && mosaic_curbank >= mosaic_current_num_banks) {
 		/*rom->ram*/
 		memcpy(MEMORY_mem + 0xc000, mosaic_ram+newbank*0x1000,0x1000);
+#ifdef CPU_JIT
+		CPU_JIT_Invalidate(0xbfff);
+		memcpy(MEMORY_JIT_mem + 0xc000, jit_mosaic_ram+newbank*0x1000,MEMORY_JIT_SIZE(0x1000));
+#endif
 		MEMORY_SetRAM(0xc000, 0xcfff);
 	}
 	else {
 		/*ram -> ram*/
 		memcpy(mosaic_ram + mosaic_curbank*0x1000, MEMORY_mem + 0xc000, 0x1000);
 		memcpy(MEMORY_mem + 0xc000, mosaic_ram + newbank*0x1000, 0x1000);
+#ifdef CPU_JIT
+		CPU_JIT_Invalidate(0xbfff);
+		memcpy(jit_mosaic_ram + mosaic_curbank*0x1000, MEMORY_JIT_mem + 0xc000, MEMORY_JIT_SIZE(0x1000));
+		memcpy(MEMORY_JIT_mem + 0xc000, jit_mosaic_ram + newbank*0x1000, MEMORY_JIT_SIZE(0x1000));
+#endif
 		MEMORY_SetRAM(0xc000, 0xcfff);
 	}
 	mosaic_curbank = newbank;
@@ -990,6 +1189,11 @@ static void AxlonPutByte(UWORD addr, UBYTE byte)
 	if (newbank == axlon_curbank) return;
 	memcpy(axlon_ram + axlon_curbank*0x4000, MEMORY_mem + 0x4000, 0x4000);
 	memcpy(MEMORY_mem + 0x4000, axlon_ram + newbank*0x4000, 0x4000);
+#ifdef CPU_JIT
+	CPU_JIT_Invalidate(0x3fff);
+	memcpy(jit_axlon_ram + axlon_curbank*0x4000, MEMORY_JIT_mem + 0x4000, MEMORY_JIT_SIZE(0x4000));
+	memcpy(MEMORY_JIT_mem + 0x4000, jit_axlon_ram + newbank*0x4000, MEMORY_JIT_SIZE(0x4000));
+#endif
 	axlon_curbank = newbank;
 }
 
@@ -1006,6 +1210,10 @@ void MEMORY_Cart809fDisable(void)
 	if (cart809F_enabled) {
 		if (MEMORY_ram_size > 32) {
 			memcpy(MEMORY_mem + 0x8000, under_cart809F, 0x2000);
+#ifdef CPU_JIT
+			CPU_JIT_Invalidate(0x7fff);
+			memcpy(MEMORY_JIT_mem + 0x8000, jit_under_cart809F, MEMORY_JIT_SIZE(0x2000));
+#endif
 			MEMORY_SetRAM(0x8000, 0x9fff);
 		}
 		else
@@ -1019,6 +1227,10 @@ void MEMORY_Cart809fEnable(void)
 	if (!cart809F_enabled) {
 		if (MEMORY_ram_size > 32) {
 			memcpy(under_cart809F, MEMORY_mem + 0x8000, 0x2000);
+#ifdef CPU_JIT
+			CPU_JIT_Invalidate(0x7fff);
+			memcpy(jit_under_cart809F, MEMORY_JIT_mem + 0x8000, MEMORY_JIT_SIZE(0x2000));
+#endif
 			MEMORY_SetROM(0x8000, 0x9fff);
 		}
 		cart809F_enabled = TRUE;
@@ -1034,13 +1246,23 @@ void MEMORY_CartA0bfDisable(void)
 		if (builtin == NULL) { /* switch RAM in */
 			if (MEMORY_ram_size > 40) {
 				memcpy(MEMORY_mem + 0xa000, under_cartA0BF, 0x2000);
+#ifdef CPU_JIT
+				CPU_JIT_Invalidate(0x9fff);
+				memcpy(MEMORY_JIT_mem + 0xa000, jit_under_cartA0BF, MEMORY_JIT_SIZE(0x2000));
+#endif
 				MEMORY_SetRAM(0xa000, 0xbfff);
 			}
-			else
+			else {
 				MEMORY_dFillMem(0xa000, 0xff, 0x2000);
+			}
 		}
-		else
+		else {
 			memcpy(MEMORY_mem + 0xa000, builtin, 0x2000);
+#ifdef CPU_JIT
+			CPU_JIT_Invalidate(0x9fff);
+			memcpy(MEMORY_JIT_mem + 0xa000, builtin == MEMORY_xegame ? jit_xegame : jit_basic, MEMORY_JIT_SIZE(0x2000));
+#endif
+		}
 		MEMORY_cartA0BF_enabled = FALSE;
 		if (Atari800_machine_type == Atari800_MACHINE_XLXE) {
 			GTIA_TRIG[3] = 0;
@@ -1058,6 +1280,10 @@ void MEMORY_CartA0bfEnable(void)
 		if (MEMORY_ram_size > 40 && builtin_cart(PIA_PORTB | PIA_PORTB_mask) == NULL) {
 			/* Back-up 0xa000-0xbfff RAM */
 			memcpy(under_cartA0BF, MEMORY_mem + 0xa000, 0x2000);
+#ifdef CPU_JIT
+			CPU_JIT_Invalidate(0x9fff);
+			memcpy(jit_under_cartA0BF, MEMORY_JIT_mem + 0xa000, MEMORY_JIT_SIZE(0x2000));
+#endif
 			MEMORY_SetROM(0xa000, 0xbfff);
 		}
 		MEMORY_cartA0BF_enabled = TRUE;
@@ -1068,6 +1294,12 @@ void MEMORY_CartA0bfEnable(void)
 
 void MEMORY_CopyROM(UWORD addr1, UWORD addr2, const void* src)
 {
+#ifdef CPU_JIT
+	if (addr1 > 0) {
+		CPU_JIT_Invalidate(addr1-1);
+	}
+	CPU_JIT_InvalidateMem(addr1, addr2);
+#endif
 	memcpy(MEMORY_mem + addr1, src, addr2 - addr1 + 1);
 }
 

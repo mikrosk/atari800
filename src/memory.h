@@ -4,11 +4,18 @@
 #include "config.h"
 
 #include "atari.h"
+#ifdef CPU_JIT
+#include "cpu_jit.h"
+#endif
 
 #define MEMORY_dGetByte(x)				(MEMORY_mem[x])
+#ifndef CPU_JIT
 #define MEMORY_dPutByte(x, y)			(MEMORY_mem[x] = y)
+#else
+void MEMORY_dPutByte(UWORD addr, UBYTE value);
+#endif
 
-#if !defined(WORDS_BIGENDIAN) && defined(WORDS_UNALIGNED_OK)
+#if !defined(WORDS_BIGENDIAN) && defined(WORDS_UNALIGNED_OK) && !defined(CPU_JIT)
 #define MEMORY_dGetWord(x)				UNALIGNED_GET_WORD(MEMORY_mem+(x), memory_read_word_stat)
 #define MEMORY_dPutWord(x, y)			UNALIGNED_PUT_WORD(MEMORY_mem+(x), (y), memory_write_word_stat)
 #define MEMORY_dGetWordAligned(x)		UNALIGNED_GET_WORD(MEMORY_mem+(x), memory_read_aligned_word_stat)
@@ -16,7 +23,11 @@
 #else
 /* can't or don't want to do word optimizations */
 #define MEMORY_dGetWord(x)				(MEMORY_mem[x] + (MEMORY_mem[(x) + 1] << 8))
+#ifndef CPU_JIT
 #define MEMORY_dPutWord(x, y)			(MEMORY_mem[x] = (UBYTE) (y), MEMORY_mem[(x) + 1] = (UBYTE) ((y) >> 8))
+#else
+void MEMORY_dPutWord(UWORD addr, UWORD value);
+#endif
 /* faster versions of MEMORY_dGetWord and MEMORY_dPutWord for even addresses */
 /* TODO: guarantee that memory is UWORD-aligned and use UWORD access */
 #define MEMORY_dGetWordAligned(x)		MEMORY_dGetWord(x)
@@ -28,6 +39,10 @@ void MEMORY_dCopyToMem(const void* from, UWORD to, size_t size);
 void MEMORY_dFillMem(UWORD addr1, UBYTE value, size_t length);
 
 extern UBYTE MEMORY_mem[65536 + 2];
+#ifdef CPU_JIT
+extern struct CPU_JIT_native_code_t MEMORY_JIT_mem[65536 + 2];
+#define MEMORY_JIT_SIZE(x) ((x) * sizeof(MEMORY_JIT_mem[0]))
+#endif
 
 /* RAM size in kilobytes.
    Valid values for Atari800_MACHINE_800 are: 16, 48, 52.

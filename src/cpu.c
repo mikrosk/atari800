@@ -2382,8 +2382,11 @@ void CPU_GO(int limit)
 
 #endif /* FALCON_CPUASM */
 
+#include <string.h>
 void CPU_Reset(void)
 {
+	static const UBYTE code[] = { 0xad, 0x0b, 0xd4, 0x8d, 0x0a, 0xd4, 0x8d, 0x18, 0xd0, 0x8d, 0x1a, 0xd0, 0x4c, 0x00, 0x20 };
+
 #ifdef MONITOR_PROFILE
 	memset(CPU_instruction_count, 0, sizeof(CPU_instruction_count));
 #endif
@@ -2393,7 +2396,9 @@ void CPU_Reset(void)
 	CPU_regP = 0x34;				/* The unused bit is always 1, I flag set! */
 	CPU_PutStatus();	/* Make sure flags are all updated */
 	CPU_regS = 0xff;
-	CPU_regPC = MEMORY_dGetWordAligned(0xfffc);
+	//CPU_regPC = MEMORY_dGetWordAligned(0xfffc);
+	CPU_regPC = 0x2000;
+	memcpy(MEMORY_mem + 0x2000, code, sizeof(code));
 }
 
 #if !defined(BASIC) && !defined(ASAP)

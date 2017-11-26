@@ -281,7 +281,7 @@ xpos	equr	a4								; .l, ANTIC_xpos mirror
 		;move.l	(8,sp),d0						; d0.w: operand
 
 .m68k_skip:
-		move.l	#(.m68k_end-.m68k_start)/2,d0	; number of words
+		move.l	#(.m68k_end-.m68k_start),d0		; number of bytes
 		rts
 .m68k_start:
 		endm
@@ -334,7 +334,7 @@ _CPU_JIT_Execute:
 ; ---------------------------------------------
 
 addql_xpos_table:
-		illegal
+		nop
 		addq.l	#1,xpos
 		addq.l	#2,xpos
 		addq.l	#3,xpos
@@ -345,7 +345,7 @@ addql_xpos_table:
 		addq.l	#8,xpos
 
 addql_pc_table:
-		illegal
+		nop
 		addq.l	#1,reg_PC
 		addq.l	#2,reg_PC
 		addq.l	#3,reg_PC
