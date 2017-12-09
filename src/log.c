@@ -71,7 +71,12 @@ void Log_print(const char *format, ...)
 
 	strcat(Log_buffer, buffer);
 #else
-	PRINT(buffer);
+	/*PRINT(buffer);*/
+	{
+	  FILE* f = fopen("/dev/nfstderr","w");
+	  fprintf(f, "%s", buffer);
+	  fclose(f);
+	}
 #endif
 }
 
