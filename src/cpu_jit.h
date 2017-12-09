@@ -15,8 +15,11 @@ struct CPU_JIT_native_code_t {
 struct CPU_JIT_insn_template_t {
 	/* modifies the PC */
 	const UWORD is_stop;
-	/* copy appropriate m68k code */
-	const ULONG (*instance)(UBYTE* buf, UWORD data, int bytes, int cycles);
+	const UWORD data_offset;
+	const UWORD bytes_offset;
+	const UWORD cycles_offset;
+	const UWORD native_code_size;
+	const UBYTE *native_code;
 };
 
 extern struct CPU_JIT_insn_template_t JIT_insn_opcode_00;	/* BRK */

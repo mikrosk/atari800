@@ -37,10 +37,12 @@
 
 #include "antic.h"
 #include "cpu.h"
+#include "log.h"
 #include "memory.h"
 #include "util.h"
 
-extern void CPU_JIT_Execute(UBYTE* pCode);
+extern void CPU_JIT_Instance(UBYTE *dst_buf, const struct CPU_JIT_insn_template_t *src_template, UWORD data, int bytes, int cycles);
+extern void CPU_JIT_Execute(UBYTE *pCode);
 
 static const struct CPU_JIT_insn_template_t* const JIT_compiler_insn_table[256] = {
 	&JIT_insn_opcode_00, &JIT_insn_opcode_01, &JIT_insn_opcode_02, &JIT_insn_opcode_03,
@@ -238,7 +240,9 @@ static struct CPU_JIT_native_code_t *compile_code(const UWORD pc) {
 		insn = MEMORY_mem[addr];
 		insn_template = JIT_compiler_insn_table[insn];
 
-		if (insn_template->instance == NULL) {
+		if (insn_template->is_stop == 2) {
+			Log_print("insn %02x not implemented", insn);
+			/* not implemented */
 			return NULL;
 		}
 
@@ -247,7 +251,7 @@ static struct CPU_JIT_native_code_t *compile_code(const UWORD pc) {
 			insn_template = &JIT_insn_opcode_4c;
 		}
 
-		native_size += insn_template->instance(NULL, 0, 0, 0);
+		native_size += insn_template->native_code_size;
 
 		addr += JIT_compiler_bytes_table[insn];
 		stop = insn_template->is_stop;
@@ -294,6 +298,10 @@ static struct CPU_JIT_native_code_t *compile_code(const UWORD pc) {
 				native_code->insn_info->data_type = Data_Type_OpLo;
 
 				data = MEMORY_mem[addr+1];
+				if (insn_template->is_stop) {
+					/* special case: bcc */
+					data = addr + ((UWORD) ((SBYTE) data));
+				}
 			} else if (bytes == 3) {
 				native_code++;
 				native_code->insn_addr = code;
@@ -319,8 +327,9 @@ static struct CPU_JIT_native_code_t *compile_code(const UWORD pc) {
 			data = addr;
 		}
 
-		code += insn_template->instance(code, data, bytes, cycles);
+		CPU_JIT_Instance(code, insn_template, data, bytes, cycles);
 
+		code += insn_template->native_code_size;
 		addr += bytes;
 		stop = insn_template->is_stop;
 	}
@@ -395,8 +404,9 @@ void CPU_JIT_GO(int limit)
 			native_code = compile_code(CPU_regPC);
 			if (native_code == NULL) {
 				/* fatal error */
-				Atari800_ErrExit();
+				exit(EXIT_FAILURE);
 			}
+			Log_print("code compiled for %x", CPU_regPC);
 		}
 
 		execute_code(native_code);
@@ -408,11 +418,13 @@ void CPU_JIT_GO(int limit)
 int CPU_JIT_Invalidate(UWORD addr)
 {
 	struct CPU_JIT_native_code_t *native_code = &MEMORY_JIT_mem[addr];
+	struct JIT_native_code_info_t *info;
+
 	if (native_code->insn_addr == NULL) {
 		return FALSE;
 	}
 
-	struct JIT_native_code_info_t *info = native_code->insn_info;
+	info = native_code->insn_info;
 	assert(info != NULL && info->data_type != Data_Type_None);
 
 	if (info->data_type == Data_Type_OpLo) {
@@ -435,7 +447,8 @@ int CPU_JIT_Invalidate(UWORD addr)
 			free(block);
 		} else {
 			/* NOTE: this assumes that native "return from subroutine" will never take more space than already allocated */
-			JIT_insn_opcode_60.instance(native_code->insn_addr, 0, 0, 0);
+			assert(JIT_insn_opcode_60.is_stop != 2);
+			CPU_JIT_Instance(native_code->insn_addr, &JIT_insn_opcode_60, 0, 0, 0);
 		}
 
 		size = JIT_compiler_bytes_table[MEMORY_mem[addr]];
@@ -480,7 +493,8 @@ void CPU_JIT_InvalidateAllocatedCode(struct CPU_JIT_native_code_t *native_code, 
 				free(block);
 			} else {
 				/* NOTE: this assumes that native "return from subroutine" will never take more space than already allocated */
-				JIT_insn_opcode_60.instance(native_code[i].insn_addr, 0, 0, 0);
+				assert(JIT_insn_opcode_60.is_stop != 2);
+				CPU_JIT_Instance(native_code[i].insn_addr, &JIT_insn_opcode_60, 0, 0, 0);
 			}
 		}
 

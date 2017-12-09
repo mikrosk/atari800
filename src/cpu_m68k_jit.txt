@@ -189,6 +189,12 @@ CPU_regP = (N & 0x80) + (V ? 0x40 : 0) + (CPU_regP & 0x3c) + ((Z == 0) ? 0x02 : 
 #define PLP         data = PL; N = data; V = (data & 0x40); Z = (data & 0x02) ^ 0x02; C = (data & 0x01); CPU_regP = (data & 0x0c) + 0x30
 
 m68k:
+abcd
+X — Set the same as the carry bit.
+N — Undefined.
+Z — Cleared if the result is nonzero; unchanged otherwise.
+V — Undefined.
+C — Set if a decimal carry was generated; cleared otherwise.
 add
 X — Set the same as the carry bit.
 N — Set if the result is negative; cleared otherwise.
@@ -231,6 +237,12 @@ N — Set if the most significant bit of the result is set; cleared otherwise.
 Z — Set if the result is zero; cleared otherwise.
 V — Always cleared.
 C — Set according to the last bit rotated out of the operand; cleared when the rotate count is zero.
+sbcd
+X — Set the same as the carry bit.
+N — Undefined.
+Z — Cleared if the result is nonzero; unchanged otherwise.
+V — Undefined.
+C — Set if a borrow (decimal) is generated; cleared otherwise.
 
 /* ---------------------------------------------- */
 /* ADC and SBC routines */
@@ -991,3 +1003,8 @@ $A000 - $C000 (Cartridge A or 8 KB RAM or BASIC ROM)
 $C000 - $D000 (4 KB RAM or OS ROM)
 $D000 - $D800 (hardware)
 $D800 - $FFFF (14 KB RAM or OS ROM)
+
+- CPU_NMI
+- SMC v bloku, kde sa prave nachadza PC
+- zmena move.b d0,d1 na makra, ktore beru d1
+- flush+inv

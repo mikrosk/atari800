@@ -1319,7 +1319,11 @@ void MEMORY_SetRAM(UWORD addr1, UWORD addr2)
 	int i;
 	for (i = addr1 >> 8; i <= addr2 >> 8; i++) {
 		MEMORY_readmap[i] = NULL;
+#ifndef CPU_JIT
 		MEMORY_writemap[i] = NULL;
+#else
+		MEMORY_writemap[i] = MEMORY_PutByte;
+#endif
 	}
 #endif
 }

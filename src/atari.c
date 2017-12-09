@@ -749,7 +749,7 @@ int Atari800_Initialise(int *argc, char *argv[])
 		|| !AF80_Initialise(argc, argv)
 #endif
 #ifdef BIT3
-		|| !BIT3_Initialise(argc, argv) 
+		|| !BIT3_Initialise(argc, argv)
 #endif
 #ifdef NTSC_FILTER
 		|| !FILTER_NTSC_Initialise(argc, argv)
@@ -855,7 +855,7 @@ int Atari800_Initialise(int *argc, char *argv[])
 		AF80_InsertRightCartridge();
 	}
 #endif
-	
+
 	/* Load Atari executable, if any */
 	if (run_direct != NULL)
 		BINLOAD_Loader(run_direct);
