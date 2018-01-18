@@ -365,11 +365,13 @@ void CPU_JIT_Initialise(void)
 void CPU_JIT_GetStatus(void)
 {
 	/* update CPU_regP from local variables */
+	/* put from regP into CCR, N & Z FLAG */
 }
 
 void CPU_JIT_PutStatus(void)
 {
 	/* update local variables from CPU_regP */
+	/* put from CCR, N & Z FLAG into regP */
 }
 
 void CPU_JIT_NMI(void)

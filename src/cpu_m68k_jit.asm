@@ -886,7 +886,7 @@ C_FLAG	equ		0
 
 		; input:    -
 		; output:   d0.b
-		; clobbers: d0 (upper word safe)
+		; clobbers: d0.w
 		macro	PL
 		addq.b	#1,reg_S
 		move.l	reg_S,d0
@@ -896,7 +896,7 @@ C_FLAG	equ		0
 
 		; input:    d0.b
 		; output:   -
-		; clobbers: d0-d1/a0-a1
+		; clobbers: d0.l-d1.l/a0-a1
 		macro	PH
 		move.b	d0,d1
 		move.l	reg_S,d0
@@ -907,7 +907,7 @@ C_FLAG	equ		0
 
 		; input:    d0.w (big endian)
 		; output:   -
-		; clobbers: d0-d1/a0-a1
+		; clobbers: d0.l-d1.l/a0-a1
 		macro	PHW
 		move.w	d0,-(sp)
 		lsr.w	#8,d0
@@ -918,7 +918,7 @@ C_FLAG	equ		0
 
 		; input:    -
 		; output:   d0.w
-		; clobbers: d0, d1 (upper word safe)
+		; clobbers: d0.w, d1.w
 		macro	PLW
 		PL
 		move.w	d0,d1
@@ -929,7 +929,7 @@ C_FLAG	equ		0
 
 		; input:    \1 (mask)
 		; output:   -
-		; clobbers: d0-d1/a0-a1
+		; clobbers: d0.l-d1.l/a0-a1
 		macro	PHP								; mask
 		move.b	_CPU_regP,d0
 		and.b	\1,d0
@@ -945,26 +945,27 @@ C_FLAG	equ		0
 .c\@:	tst.b	C
 		beq.b	.done\@
 		bset	#C_FLAG,d0
-.done\@:PH
+.done\@:
+		PH
 		endm
 
 		; input:    -
 		; output:   d0.b
-		; clobbers: d0-d1/a0-a1
+		; clobbers: d0.l-d1.l/a0-a1
 		macro	PHPB0
 		PHP		#$2c							; push flags with B flag clear (NMI, IRQ)
 		endm
 
 		; input:    -
 		; output:   d0.b
-		; clobbers: d0-d1/a0-a1
+		; clobbers: d0.l-d1.l/a0-a1
 		macro	PHPB1
 		PHP		#$3c							; push flags with B flag set (PHP, BRK)
 		endm
 
 		; input:    -
 		; output:   d0.b
-		; clobbers: d0 (upper word safe)
+		; clobbers: d0.w
 		macro	PLP
 		PL
 		btst	#C_FLAG,d0
@@ -982,7 +983,7 @@ C_FLAG	equ		0
 
 		; input:    -
 		; output:   -
-		; clobbers: d0-d1/a0-a1
+		; clobbers: d0.l-d1.l/a0-a1
 		macro	PHPC
 		move.l	reg_PC,d0
 		PHW
@@ -990,7 +991,7 @@ C_FLAG	equ		0
 
 		; input:    -
 		; output:   -
-		; clobbers: d0-d1/a0-a1
+		; clobbers: d0.l-d1.l/a0-a1
 		macro	CHECKIRQ
 		tst.b	_CPU_IRQ
 		beq.b	.skip\@
@@ -1011,7 +1012,7 @@ C_FLAG	equ		0
 
 		; input:    d0.l
 		; output:   d0.b
-		; clobbers: d0-d1/a0-a1
+		; clobbers: d0.l-d1.l/a0-a1
 		macro	RMW_GetByte
 		move.l	d0,-(sp)
 		MEMORY_GetByte

@@ -244,71 +244,6 @@ Z — Cleared if the result is nonzero; unchanged otherwise.
 V — Undefined.
 C — Set if a borrow (decimal) is generated; cleared otherwise.
 
-/* ---------------------------------------------- */
-/* ADC and SBC routines */
-
-	adc:
-		if (!(CPU_regP & CPU_D_FLAG)) {
-			/* Binary mode */
-			unsigned int tmp;
-			tmp = A + data + C;
-			C = tmp > 0xff;
-			/* C = tmp >> 8; */
-			V = !((A ^ data) & 0x80) && ((data ^ tmp) & 0x80);
-			Z = N = A = (UBYTE) tmp;
-	    }
-		else {
-			/* Decimal mode */
-			unsigned int tmp;
-			tmp = (A & 0x0f) + (data & 0x0f) + C;
-			if (tmp >= 10)
-				tmp = (tmp - 10) | 0x10;
-			tmp += (A & 0xf0) + (data & 0xf0);
-
-			Z = A + data + C;
-			N = (UBYTE) tmp;
-			V = !((A ^ data) & 0x80) && ((data ^ tmp) & 0x80);
-
-			if (tmp > 0x9f)
-				tmp += 0x60;
-			C = tmp > 0xff;
-			A = (UBYTE) tmp;
-		}
-		DONE
-
-	sbc:
-		if (!(CPU_regP & CPU_D_FLAG)) {
-			/* Binary mode */
-			unsigned int tmp;
-			/* tmp = A - data - !C; */
-			tmp = A - data - 1 + C;
-			C = tmp < 0x100;
-			V = ((A ^ tmp) & 0x80) && ((A ^ data) & 0x80);
-			Z = N = A = (UBYTE) tmp;
-		}
-		else {
-			/* Decimal mode */
-			unsigned int al, ah, tmp;
-			/* tmp = A - data - !C; */
-			tmp = A - data - 1 + C;
-			/* al = (A & 0x0f) - (data & 0x0f) - !C; */
-			al = (A & 0x0f) - (data & 0x0f) - 1 + C;	/* Calculate lower nybble */
-			ah = (A >> 4) - (data >> 4);		/* Calculate upper nybble */
-			if (al & 0x10) {
-				al -= 6;	/* BCD fixup for lower nybble */
-				ah--;
-			}
-			if (ah & 0x10)
-				ah -= 6;	/* BCD fixup for upper nybble */
-
-			C = tmp < 0x100;			/* Set flags */
-			V = ((A ^ tmp) & 0x80) && ((A ^ data) & 0x80);
-			Z = N = (UBYTE) tmp;
-
-			A = (ah << 4) + (al & 0x0f);	/* Compose result */
-		}
-		DONE
-
 ADC  Add Memory to Accumulator with Carry
 
      A + M + C -> A, C                N Z C I D V
@@ -1008,3 +943,7 @@ $D800 - $FFFF (14 KB RAM or OS ROM)
 - SMC v bloku, kde sa prave nachadza PC
 - zmena move.b d0,d1 na makra, ktore beru d1
 - flush+inv
+- ujasnit si, ako sa presne pouziva CPU_regP -- v C kode ho napriklad maju naozaj striktne oddeleny od N/V/Z/C, zatial co v asm kode je to dost miesane, casto sa tam robia kopie do tej adresy, hoci by to mali drzat registre... hlavne bacha, okopiroval som z C kodu tie masky 0c a 3c v PLP/RTI!!!
+
+- nepouzivat premenne v pamati pre flagy, ale bud registre  (ako v cpu_m68k.asm) alebo mat len jeden, ktory sa bude kopirovat do CCR
+- nemozeme pouzivat ani flag(pc), lebo my to kopirujeme kde kade po pamati!!!
