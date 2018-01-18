@@ -25,6 +25,7 @@
 #define _POSIX_C_SOURCE 200112L /* for vsnprintf */
 
 #include "config.h"
+#include "atari.h"
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
@@ -47,7 +48,8 @@ char Log_buffer[Log_BUFFER_SIZE];
 #endif
 
 static int exists(const char *name) {
-	if (FILE *file = fopen(name, "r")) {
+	FILE *file;
+	if ((file = fopen(name, "r"))) {
 		fclose(file);
 		return TRUE;
 	} else {

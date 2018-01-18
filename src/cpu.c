@@ -123,6 +123,14 @@ UBYTE CPU_IRQ;
 
 #elif defined(CPU_JIT)
 
+#if defined(MONITOR_BREAK)
+#error cpu_m68k_jit.asm does not support code breakpoints and execution history
+#endif
+
+#if defined(CRASH_MENU)
+#error cpu_m68k_jit.asm does not support crash menu
+#endif
+
 #else
 
 /* Windows headers define it */

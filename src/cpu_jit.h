@@ -292,12 +292,6 @@ extern struct CPU_JIT_insn_template_t JIT_insn_opcode_f2;	/* ESC #ab (CIM) - on 
 #define JIT_insn_opcode_92	JIT_insn_opcode_b2
 extern struct CPU_JIT_insn_template_t JIT_insn_opcode_b2;
 
-extern void CPU_JIT_Initialise(void);
-extern void CPU_JIT_GetStatus(void);
-extern void CPU_JIT_PutStatus(void);
-extern void CPU_JIT_NMI(void);
-extern void CPU_JIT_GO(int limit);
-
 /* Invalidates the host instructions specified by the address. Returns FALSE if not found. */
 extern int CPU_JIT_Invalidate(UWORD addr);
 /* Invalidates block(s) specified by the range. */
