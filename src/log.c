@@ -46,6 +46,15 @@
 char Log_buffer[Log_BUFFER_SIZE];
 #endif
 
+static int exists(const char *name) {
+	if (FILE *file = fopen(name, "r")) {
+		fclose(file);
+		return TRUE;
+	} else {
+		return FALSE;
+	}
+}
+
 void Log_print(const char *format, ...)
 {
 	va_list args;
@@ -73,9 +82,18 @@ void Log_print(const char *format, ...)
 #else
 	/*PRINT(buffer);*/
 	{
-	  FILE* f = fopen("/dev/nfstderr","w");
-	  fprintf(f, "%s", buffer);
-	  fclose(f);
+		FILE *f;
+		char *name = "/dev/nfstderr";
+
+		if (!exists(name)) {
+			name = "atari800.out";
+		}
+
+		f = fopen(name,"w");
+		if (f) {
+			fprintf(f, "%s", buffer);
+			fclose(f);
+		}
 	}
 #endif
 }
