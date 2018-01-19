@@ -779,14 +779,8 @@ C_FLAG	equ		0
 
 		macro	ADC6502
 		btst	#D_FLAG,_CPU_regP
-		bne.b	.decimal_adc\@
-		add.b	C,C
-		addx.b	d0,reg_A
-		svs		V
-		scs		C
-		move.b	reg_A,N
-		move.b	reg_A,Z
-		bra.b	.skip\@
+		beq.b	.binary_adc\@
+
 .decimal_adc\@:
 		add.b	C,C
 		move.b	reg_A,Z
@@ -812,6 +806,15 @@ C_FLAG	equ		0
 		blo.b	.no_carry2\@
 		add.b	#$60,reg_A
 .no_carry2\@:
+		bra.b	.skip\@
+
+.binary_adc\@:
+		add.b	C,C
+		addx.b	d0,reg_A
+		svs		V
+		scs		C
+		move.b	reg_A,N
+		move.b	reg_A,Z
 .skip\@:
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
@@ -819,14 +822,8 @@ C_FLAG	equ		0
 
 		macro	SBC6502
 		btst	#D_FLAG,_CPU_regP
-		bne.b	.decimal_sbc\@
-		subq.b	#1,C
-		subx.b	d0,reg_A
-		svs		V
-		scc		C
-		move.b	reg_A,N
-		move.b	reg_A,Z
-		bra.b	.skip\@
+		beq.b	.binary_sbc\@
+
 .decimal_sbc\@:
 		move.b	reg_A,Z
 		unpk	reg_A,reg_A,#0
@@ -848,6 +845,15 @@ C_FLAG	equ		0
 		svs		V
 		scc		C
 		move.b	Z,N
+		bra.b	.skip\@
+
+.binary_sbc\@:
+		subq.b	#1,C
+		subx.b	d0,reg_A
+		svs		V
+		scc		C
+		move.b	reg_A,N
+		move.b	reg_A,Z
 .skip\@:
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
