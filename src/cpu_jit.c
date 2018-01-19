@@ -357,17 +357,13 @@ UBYTE CPU_regP;
 UBYTE CPU_regS;
 UBYTE CPU_IRQ;
 
-/* CPU API */
 void CPU_GetStatus(void)
 {
-	/* update CPU_regP from local variables */
-	/* put from regP into CCR, N & Z FLAG */
+	/* not needed */
 }
-
 void CPU_PutStatus(void)
 {
-	/* update local variables from CPU_regP */
-	/* put from CCR, N & Z FLAG into regP */
+	/* not needed */
 }
 
 void CPU_NMI(void)

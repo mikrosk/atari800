@@ -278,7 +278,6 @@ reg_PC	equr	d2								; .w
 reg_A	equr	d3								; .b
 reg_X	equr	d4								; .b
 reg_Y	equr	d5								; .b
-reg_S	equr	d6								; .b
 memory	equr	a2								; .l
 		ifeq	PAGED_ATTRIB
 mem_attrib equr	a3
@@ -568,8 +567,7 @@ _CPU_JIT_Execute:
 		clr.l	reg_Y
 		move.b	_CPU_regY,reg_Y
 		; TODO: reg_P
-		clr.l	reg_S
-		move.b	_CPU_regS,reg_S
+		move.b	_CPU_regS,reg_S+1
 
 		ifeq	PAGED_ATTRIB
 		lea		_MEMORY_attrib,mem_attrib
@@ -584,7 +582,7 @@ _CPU_JIT_Execute:
 
 		move.l	xpos,_ANTIC_xpos
 
-		move.b	reg_S,_CPU_regS
+		move.b	reg_S+1,_CPU_regS
 		; TODO: reg_P
 		move.b	reg_Y,_CPU_regY
 		move.b	reg_X,_CPU_regX
@@ -889,13 +887,12 @@ C_FLAG	equ		0
 		move.b	\1,Z
 		endm
 
-		; input:    -
+		; input:    (clean d0.l)
 		; output:   d0.b
 		; clobbers: d0.w
 		macro	PL
-		addq.b	#1,reg_S
-		move.l	reg_S,d0
-		add.w	#$0100,d0
+		addq.b	#1,reg_S+1
+		move.w	reg_S,d0
 		MEMORY_dGetByte
 		endm
 
@@ -904,9 +901,8 @@ C_FLAG	equ		0
 		; clobbers: d0.l-d1.l/a0-a1
 		macro	PH
 		move.b	d0,d1
-		move.l	reg_S,d0
-		add.w	#$0100,d0
-		subq.b	#1,reg_S
+		move.w	reg_S,d0
+		subq.b	#1,reg_S+1
 		MEMORY_dPutByte
 		endm
 
@@ -921,7 +917,7 @@ C_FLAG	equ		0
 		PH
 		endm
 
-		; input:    -
+		; input:    (clean d0.l)
 		; output:   d0.w
 		; clobbers: d0.w, d1.w
 		macro	PLW
@@ -968,7 +964,7 @@ C_FLAG	equ		0
 		PHP		#$3c							; push flags with B flag set (PHP, BRK)
 		endm
 
-		; input:    -
+		; input:    (clean d0.l)
 		; output:   d0.b
 		; clobbers: d0.w
 		macro	PLP
@@ -2076,7 +2072,7 @@ _JIT_insn_opcode_99: ;STA abcd,y
 _JIT_insn_opcode_9a: ;TXS
 		NO_STOP
 		IMPLIED
-		move.b	reg_X,reg_S
+		move.b	reg_X,reg_S+1
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
 		DONE
@@ -2276,7 +2272,7 @@ _JIT_insn_opcode_b9: ;LDA abcd,y
 _JIT_insn_opcode_ba: ;TSX
 		NO_STOP
 		IMPLIED
-		move.b	reg_S,reg_X
+		move.b	reg_S+1,reg_X
 		move.b	reg_X,N
 		move.b	reg_X,Z
 		M68K_BYTES_TEMPLATE
@@ -2759,3 +2755,5 @@ addql_pc_table:
 		addq.l	#1,reg_PC
 		addq.l	#2,reg_PC
 		addq.l	#3,reg_PC
+
+reg_S:	dc.w	$0100
