@@ -788,42 +788,30 @@ C_FLAG	equ		0
 		move.b	reg_A,Z
 		bra.b	.skip\@
 .decimal_adc\@:
-; TODO
-  move.w d0,a0     ; needed first
-  moveq  #15,d7
-  and.b  d7,d0     ; low nibble Add
-  move.b A,ZFLAG
-  and.b  d7,ZFLAG  ; low nibble A
-  add.b  CFLAG,CFLAG
-  abcd   d0,ZFLAG  ; low nibble BCD add
-  move.b A,d0
-  moveq  #$f0,d7
-  and.b  d7,d0     ; high nibble Add
-  add.b  d0,ZFLAG
-  move.w a0,d0
-  and.b  d7,d0     ; high nibble Add
-  add.b  d0,ZFLAG
-  ext.w  NFLAG     ; NFLAG finished
-  eor.b  A,d0      ; A eor data
-  eor.b  A,ZFLAG   ; A eor temp
-  not.b  ZFLAG
-  or.b   d0,ZFLAG
-  smi    VFLAG     ; VFLAG finished
-  move.w a0,d0     ; restore data
-  add.b  CFLAG,CFLAG
-
-  move.b A,ZFLAG
-  addx.b d0,ZFLAG  ; ZFLAG finished
-
-  add.b  CFLAG,CFLAG
-  abcd   d0,A      ; A finished
-  scs    CFLAG
-
-		move.b	reg_A,Z
 		add.b	C,C
-		abcd	d0,reg_A
-
-
+		move.b	reg_A,Z
+		addx.b	d0,Z
+		move.b	reg_A,V
+		eor.b	d0,V
+		not.b	V
+		unpk	reg_A,reg_A,#0
+		unpk	d0,d7,#0
+		add.b	C,C
+		addx.w	d7,reg_A
+		cmp.b	#$0a,reg_A
+		blo.b	.no_carry\@
+		add.w	#$0106,reg_A
+.no_carry\@:
+		pack	reg_A,reg_A,#0
+		move.b	reg_A,N
+		eor.b	reg_A,d0
+		and.b	V,d0
+		smi		V
+		cmp.w	#$0a00,reg_A
+		shs		C
+		blo.b	.no_carry2\@
+		add.b	#$60,reg_A
+.no_carry2\@:
 .skip\@:
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
@@ -841,14 +829,25 @@ C_FLAG	equ		0
 		bra.b	.skip\@
 .decimal_sbc\@:
 		move.b	reg_A,Z
+		unpk	reg_A,reg_A,#0
+		unpk	d0,d7,#0
 		not.b	C
 		add.b	C,C
-		sbcd	d0,reg_A
+		subx.w	d7,reg_A
+		tst.b	reg_A
+		bpl.b	.no_carry\@
+		subq.w	#6,reg_A
+.no_carry\@:
+		pack	reg_A,reg_A,#0
+		tst.w	reg_A
+ 		bpl.b	.no_carry2\@
+ 		sub.b	#$60,reg_A
+.no_carry2\@:
 		add.b	C,C
 		subx.b	d0,Z
 		svs		V
 		scc		C
-		move.b	reg_A,N
+		move.b	Z,N
 .skip\@:
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
