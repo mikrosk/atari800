@@ -1107,7 +1107,7 @@ if [[ "$a8_host" = "falcon" -a "$a8_target" = "falcon" ]]; then
     fi
 
     if [[ "$WANT_CPU_JIT" = "yes" ]]; then
-        OBJS="$OBJS cpu_m68k_jit.o"
+        OBJS="$OBJS falcon/cpu_m68k_jit.o"
     fi
 fi
 
