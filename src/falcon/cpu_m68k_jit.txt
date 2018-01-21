@@ -943,7 +943,16 @@ $D800 - $FFFF (14 KB RAM or OS ROM)
 - SMC v bloku, kde sa prave nachadza PC
 - zmena move.b d0,d1 na makra, ktore beru d1
 - flush+inv
-- ujasnit si, ako sa presne pouziva CPU_regP -- v C kode ho napriklad maju naozaj striktne oddeleny od N/V/Z/C, zatial co v asm kode je to dost miesane, casto sa tam robia kopie do tej adresy, hoci by to mali drzat registre... hlavne bacha, okopiroval som z C kodu tie masky 0c a 3c v PLP/RTI!!!
 
-- nepouzivat premenne v pamati pre flagy, ale bud registre  (ako v cpu_m68k.asm) alebo mat len jeden, ktory sa bude kopirovat do CCR
-- nemozeme pouzivat ani flag(pc), lebo my to kopirujeme kde kade po pamati!!!
+JIT ideas:
+- nenechat tam chudaka pocitat, ci JMP prekracuje hranicu a blbosti, to moze urobit aj JIT
+- spravit si dve verzie generovaneho kodu - s porovnavanim cyklov a bez; ak je cely blok kratsi ako limit -> no problem!
+- SED/CLD by sposobilo return a zrejme z nejakej tabulky vycitalo, ktore bloky ma pregenerovat, aby bin/dec adc/sub malo len jednu rutinu (mozno blbost, chcelo by to vidiet v praxi na par desiatkach programov; urcite ako ifdef)
+- switch, ci podporovat smc kod
+- spravit MEMORY_JIT_mem verejnu pre asm -- kde by som porovnal, ci sa ma JIT volat pri skoku alebo pokracovat -- aj ked pokracovat kde sme museli zistovat cez vsetky tie struktury az kym sa dopracujeme k UBYTE* addr -- stale stoji za to kedze alternativa je save/restore vsetkych registrov, rts atd..
+- interkacia medzi sucasnou a nasledujucou instrukciou: ak JIT vie, ze and meni N/Z a nasledne add meni N/Z (ktore nema ako vstup N/Z), tak mozeme vygenerovat len jedno ukladanie flagov! cize kazda instrukcia by asi musela mat tri verzie: bez nastavovania Z/C, bez nastavovania C a bez nastavovania V (tu by to mohlo byt specialne zaujimave -- milion ADC/SBC a ak nakoniec V nikoho nezaujima, tak ho nastavime az niekde nakonci pri rts...) ... mno, viac ako tri verzie, 8 verzii, ale nie je to take zle, lebo:
+  V - nastavuje CLV, ADC, SBC; vstup pre BVS, BVC
+  C - nastavuje ASL, LSR, ROR, ROL, ADC, SBC; vstup pre ROL, ROR, ADC, SBC, BCC, BCS
+  D - nastavuje CLD, SED; vstup pre ADC, SBC
+  Cize hlavne Z/N a C, ADC/SBC bude klasicky najhorsia :)
+- podobna optimalizacia: ak vieme, ze blok konci na Bcc a v danom bloku nic dane 'cc' nemeni, tak nemusime robit podmieneny skok (uzitocne hlavne ak ten skok bude not taken, mozeme pokracovat ak mame uz blok vygenerovany -- co by opat mohol zabezpecit JIT)

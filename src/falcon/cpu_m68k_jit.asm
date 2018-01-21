@@ -274,10 +274,14 @@ no_stop	equ		0
 is_stop	equ		1
 unknown	equ		2
 
-reg_PC	equr	d2								; .w
-reg_A	equr	d3								; .b
-reg_X	equr	d4								; .b
-reg_Y	equr	d5								; .b
+reg_A	equr	d2								; .b
+reg_X	equr	d3								; .b
+reg_Y	equr	d4								; .b
+N		equr	d5								; .w (< 0   => N flag set)
+V		equr	d6								; .b (<> 0  => V flag set)
+Z		equr	d5								; .b (== 0  => Z flag set)
+C		equr	d7								; .b (< 0   => C flag set)
+
 memory	equr	a2								; .l
 		ifeq	PAGED_ATTRIB
 mem_attrib equr	a3
@@ -285,7 +289,74 @@ mem_attrib equr	a3
 mem_readmap equr a3
 mem_writemap equr a4
 		endif
+reg_PC	equr	a5								; .w (must be written as long due to sign extension)
 xpos	equr	a6								; .l, ANTIC_xpos mirror
+
+; ----------------------------------------------
+
+; Bit      : 76543210
+; CCR      : ***XNZVC
+; CPU_regP : NV*BDIZC
+
+N_FLAG	equ		7
+V_FLAG	equ		6
+B_FLAG	equ		4
+D_FLAG	equ		3
+I_FLAG	equ		2
+Z_FLAG	equ		1
+C_FLAG	equ		0
+
+		macro	GetStatus						; src.b: 00*B0I00
+.n\@:	tst.w	N
+		bpl.b	.v\@
+		;bset	#N_FLAG,\1
+		ori.b	#(1<<N_FLAG),\1
+.v\@:	tst.b	V
+		beq.b	.z\@
+		;bset	#V_FLAG,\1
+		ori.b	#(1<<V_FLAG),\1
+.z\@:	tst.b	Z
+		bne.b	.c\@
+		;bset	#Z_FLAG,\1
+		addq.b	#(1<<Z_FLAG),\1
+.c\@:	tst.b	C
+		beq.b	.done\@
+		;bset	#C_FLAG,\1
+		addq.b	#(1<<C_FLAG),\1
+.done\@:
+		endm
+
+		macro	PutStatus						; src.b: NV*BDIZC
+		move.b	\1,N
+		ext.w	N
+		add.b	N,N								; dn.b: [N]V*BDIZC0
+		smi		V
+		lsl.b	#6,N							; dn.b: [Z]C0000000
+		scs		Z
+		smi		C
+		endm
+
+		macro	ClrV
+		clr.b	V
+		endm
+		macro	SetD
+		ori.b	#(1<<D_FLAG),_CPU_regP
+		endm
+		macro	ClrD
+		andi.b	#~(1<<D_FLAG),_CPU_regP
+		endm
+		macro	SetI
+		ori.b	#(1<<I_FLAG),_CPU_regP
+		endm
+		macro	ClrI
+		andi.b	#~(1<<I_FLAG),_CPU_regP
+		endm
+		macro	SetC
+		st		C
+		endm
+		macro	ClrC
+		clr.b	C
+		endm
 
 ; ----------------------------------------------
 
@@ -298,6 +369,8 @@ xpos	equr	a6								; .l, ANTIC_xpos mirror
 		ror.w	#8,d0
 		endm
 
+; TODO: introduce MEMORY_CODE / -1 as an indicator that this page
+; contains (or doesn't) code
 		macro	MEMORY_dPutByte					; d0.l: addr, d1.b: value
 		move.l	d1,-(sp)
 		move.l	d0,-(sp)
@@ -396,13 +469,6 @@ xpos	equr	a6								; .l, ANTIC_xpos mirror
 		dc.w	.m68k_end-.m68k_start
 		endm
 
-		macro	OFFSET_WITH_CYCLES				; offset
-		dc.w	\1
-		dc.w	-1
-		dc.w	.m68k_cycles-.m68k_start
-		dc.w	.m68k_end-.m68k_start
-		endm
-
 		macro	OFFSET_WITH_BYTES_AND_CYCLES	; offset
 		dc.w	\1
 		dc.w	.m68k_bytes-.m68k_start
@@ -410,15 +476,22 @@ xpos	equr	a6								; .l, ANTIC_xpos mirror
 		dc.w	.m68k_end-.m68k_start
 		endm
 
+		macro	OFFSET_WITH_CYCLES				; offset
+		dc.w	\1
+		dc.w	-1
+		dc.w	.m68k_cycles-.m68k_start
+		dc.w	.m68k_end-.m68k_start
+		endm
+
 		macro	BRANCH_WITH_BYTES_AND_CYCLES
-		dc.w	.m68k_branch-.m68k_start+2
+		dc.w	.m68k_branch-.m68k_start+4
 		dc.w	.m68k_bytes-.m68k_start
 		dc.w	.m68k_cycles-.m68k_start
 		dc.w	.m68k_end-.m68k_start
 		endm
 
 		macro	JUMP_WITH_CYCLES
-		dc.w	.m68k_jump-.m68k_start+2
+		dc.w	.m68k_jump-.m68k_start+4
 		dc.w	-1
 		dc.w	.m68k_cycles-.m68k_start
 		dc.w	.m68k_end-.m68k_start
@@ -517,23 +590,26 @@ xpos	equr	a6								; .l, ANTIC_xpos mirror
 
 ; ----------------------------------------------
 
+; TODO: we know what is the value of the PC and the jump destination
+;       so why not calculate it in advance?
 		macro	BRANCH
 .m68k_branch:
-		move.w	#$abcd,d0
-		eor.w	d0,reg_PC
-		and.w	#$ff00,reg_PC
+		move.l	#$0000abcd,d0
+		move.w	reg_PC,d1
+		eor.w	d0,d1
+		lsr.w	#8,d1
 		beq.b	.same_page\@
 		addq.l	#1,xpos
 .same_page\@:
 		; CHEATING!!! add the base two cycles + 1 'branch taken' and return
 		addq.l	#2+1,xpos
-		move.w	d0,reg_PC
+		move.l	d0,reg_PC
 		rts
 		endm
 
 		macro	M68K_BYTES_TEMPLATE
 .m68k_bytes:
-		addq.l	#1,reg_PC						; 1 - 3
+		addq.w	#1,reg_PC						; 1 - 3
 		endm
 
 		macro	M68K_CYCLES_TEMPLATE
@@ -558,16 +634,20 @@ _CPU_JIT_Execute:
 		movea.l	(4,sp),a0						; code
 		movem.l	d2-d7/a2-a6,-(sp)
 
-		clr.l	reg_PC
-		move.w	_CPU_regPC,reg_PC
+		clr.l	d0
+		move.w	_CPU_regPC,d0
+		move.l	d0,reg_PC
 		clr.l	reg_A
 		move.b	_CPU_regA,reg_A
 		clr.l	reg_X
 		move.b	_CPU_regX,reg_X
 		clr.l	reg_Y
 		move.b	_CPU_regY,reg_Y
-		; TODO: reg_P
 		move.b	_CPU_regS,reg_S+1
+
+		move.b	_CPU_regP,d0
+		PutStatus d0
+		and.b	#%00111100,_CPU_regP			; NV*BDIZC -> 00*BDI00
 
 		ifeq	PAGED_ATTRIB
 		lea		_MEMORY_attrib,mem_attrib
@@ -582,8 +662,11 @@ _CPU_JIT_Execute:
 
 		move.l	xpos,_ANTIC_xpos
 
+		move.b	_CPU_regP,d0
+		GetStatus d0
+		move.b	d0,_CPU_regP
+
 		move.b	reg_S+1,_CPU_regS
-		; TODO: reg_P
 		move.b	reg_Y,_CPU_regY
 		move.b	reg_X,_CPU_regX
 		move.b	reg_A,_CPU_regA
@@ -634,66 +717,10 @@ _CPU_JIT_Instance:
 
 ; ----------------------------------------------
 
-N:		ds.b	1								; bit7 set => N flag set
-V:		ds.b	1								; non-zero => V flag set
-Z:		ds.b	1								; zero     => Z flag set
-C:		ds.b	1								; non-zero => C flag set
-
-N_FLAG	equ		7
-V_FLAG	equ		6
-B_FLAG	equ		4
-D_FLAG	equ		3
-I_FLAG	equ		2
-Z_FLAG	equ		1
-C_FLAG	equ		0
-
-		macro	SetN
-		bset	#N_FLAG,_CPU_regP
-		endm
-		macro	ClrN
-		bclr	#N_FLAG,_CPU_regP
-		endm
-		macro	SetV
-		bset	#V_FLAG,_CPU_regP
-		endm
-		macro	ClrV
-		bclr	#V_FLAG,_CPU_regP
-		endm
-		macro	SetB
-		bset	#B_FLAG,_CPU_regP
-		endm
-		macro	ClrB
-		bclr	#B_FLAG,_CPU_regP
-		endm
-		macro	SetD
-		bset	#D_FLAG,_CPU_regP
-		endm
-		macro	ClrD
-		bclr	#D_FLAG,_CPU_regP
-		endm
-		macro	SetI
-		bset	#I_FLAG,_CPU_regP
-		endm
-		macro	ClrI
-		bclr	#I_FLAG,_CPU_regP
-		endm
-		macro	SetZ
-		bset	#Z_FLAG,_CPU_regP
-		endm
-		macro	ClrZ
-		bclr	#Z_FLAG,_CPU_regP
-		endm
-		macro	SetC
-		bset	#C_FLAG,_CPU_regP
-		endm
-		macro	ClrC
-		bclr	#C_FLAG,_CPU_regP
-		endm
-
 		macro	AND6502
 		and.b	d0,reg_A
-		move.b	reg_A,N
 		move.b	reg_A,Z
+		ext.w	N
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
 		endm
@@ -702,7 +729,7 @@ C_FLAG	equ		0
 		move.b	reg_A,Z
 		sub.b	d0,Z
 		scc		C								; C is inverted on the 6502
-		move.b	Z,N
+		ext.w	N
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
 		endm
@@ -711,7 +738,7 @@ C_FLAG	equ		0
 		move.b	reg_X,Z
 		sub.b	d0,Z
 		scc		C
-		move.b	Z,N
+		ext.w	N
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
 		endm
@@ -720,57 +747,57 @@ C_FLAG	equ		0
 		move.b	reg_Y,Z
 		sub.b	d0,Z
 		scc		C
-		move.b	Z,N
+		ext.w	N
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
 		endm
 
 		macro	EOR6502
 		eor.b	d0,reg_A
-		move.b	reg_A,N
 		move.b	reg_A,Z
+		ext.w	N
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
 		endm
 
 		macro	LDA6502
 		move.b	d0,reg_A
-		move.b	reg_A,N
 		move.b	reg_A,Z
+		ext.w	N
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
 		endm
 
 		macro	LDX6502
 		move.b	d0,reg_X
-		move.b	reg_X,N
 		move.b	reg_X,Z
+		ext.w	N
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
 		endm
 
 		macro	LDY6502
 		move.b	d0,reg_Y
-		move.b	reg_Y,N
 		move.b	reg_Y,Z
+		ext.w	N
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
 		endm
 
 		macro	ORA6502
 		or.b	d0,reg_A
-		move.b	reg_A,N
 		move.b	reg_A,Z
+		ext.w	N
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
 		endm
 
 		macro	BIT6502
-		move.b	d0,N
-		move.b	d0,V
-		and.b	#$40,V
-		and.b	reg_A,d0
 		move.b	d0,Z
+		ext.w	N
+		and.b	reg_A,Z
+		and.b	#(1<<V_FLAG),d0
+		move.b	d0,V
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
 		endm
@@ -780,26 +807,27 @@ C_FLAG	equ		0
 		beq.b	.binary_adc\@
 
 .decimal_adc\@:
+		unpk	reg_A,d1,#0
+		unpk	d0,Z,#0
 		add.b	C,C
-		move.b	reg_A,Z
-		addx.b	d0,Z
-		move.b	reg_A,V
-		eor.b	d0,V
-		not.b	V
-		unpk	reg_A,reg_A,#0
-		unpk	d0,d7,#0
-		add.b	C,C
-		addx.w	d7,reg_A
-		cmp.b	#$0a,reg_A
+		addx.w	Z,d1
+		cmp.b	#$0a,d1
 		blo.b	.no_carry\@
-		add.w	#$0106,reg_A
+		add.w	#$0106,d1
 .no_carry\@:
-		pack	reg_A,reg_A,#0
-		move.b	reg_A,N
-		eor.b	reg_A,d0
-		and.b	V,d0
+		pack	d1,d1,#0
+		move.b	d1,N
+		ext.w	N
+		move.b	reg_A,Z
+		add.b	C,C
+		addx.b	d0,Z
+		eor.b	d0,reg_A
+		not.b	reg_A
+		eor.b	d1,d0
+		and.b	reg_A,d0
 		smi		V
-		cmp.w	#$0a00,reg_A
+		move.b	d1,reg_A
+		cmp.w	#$0a00,d1
 		shs		C
 		blo.b	.no_carry2\@
 		add.b	#$60,reg_A
@@ -811,8 +839,8 @@ C_FLAG	equ		0
 		addx.b	d0,reg_A
 		svs		V
 		scs		C
-		move.b	reg_A,N
 		move.b	reg_A,Z
+		ext.w	N
 .skip\@:
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
@@ -825,10 +853,10 @@ C_FLAG	equ		0
 .decimal_sbc\@:
 		move.b	reg_A,Z
 		unpk	reg_A,reg_A,#0
-		unpk	d0,d7,#0
+		unpk	d0,d1,#0
 		not.b	C
 		add.b	C,C
-		subx.w	d7,reg_A
+		subx.w	d1,reg_A
 		tst.b	reg_A
 		bpl.b	.no_carry\@
 		subq.w	#6,reg_A
@@ -840,9 +868,9 @@ C_FLAG	equ		0
 .no_carry2\@:
 		add.b	C,C
 		subx.b	d0,Z
+		ext.w	N
 		svs		V
 		scc		C
-		move.b	Z,N
 		bra.b	.skip\@
 
 .binary_sbc\@:
@@ -850,8 +878,8 @@ C_FLAG	equ		0
 		subx.b	d0,reg_A
 		svs		V
 		scc		C
-		move.b	reg_A,N
 		move.b	reg_A,Z
+		ext.w	N
 .skip\@:
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
@@ -861,30 +889,30 @@ C_FLAG	equ		0
 		add.b	C,C
 		addx.b	\1,\1
 		scs		C
-		move.b	\1,N
 		move.b	\1,Z
+		ext.w	N
 		endm
 
 		macro	ROR_ONLY						; src/dst reg
 		add.b	C,C
 		roxr.b	#1,\1
 		scs		C
-		move.b	\1,N
 		move.b	\1,Z
+		ext.w	N
 		endm
 
 		macro	ASL_ONLY						; src/dst reg
 		add.b	\1,\1
 		scs		C
-		move.b	\1,N
 		move.b	\1,Z
+		ext.w	N
 		endm
 
 		macro	LSR_ONLY						; src/dst reg
 		lsr.b	#1,\1
 		scs		C
-		move.b	\1,N
 		move.b	\1,Z
+		clr.w	N								; always positive
 		endm
 
 		; input:    (clean d0.l)
@@ -928,40 +956,24 @@ C_FLAG	equ		0
 		or.w	d1,d0
 		endm
 
-		; input:    \1 (mask)
+		; input:    -
 		; output:   -
 		; clobbers: d0.l-d1.l/a0-a1
-		macro	PHP								; mask
-		move.b	_CPU_regP,d0
-		and.b	\1,d0
-.n\@:	tst.b	N
-		bpl.b	.v\@
-		bset	#N_FLAG,d0
-.v\@:	tst.b	V
-		beq.b	.z\@
-		bset	#V_FLAG,d0
-.z\@:	tst.b	Z
-		bne.b	.c\@
-		bset	#Z_FLAG,d0
-.c\@:	tst.b	C
-		beq.b	.done\@
-		bset	#C_FLAG,d0
-.done\@:
-		PH
-		endm
-
-		; input:    -
-		; output:   d0.b
-		; clobbers: d0.l-d1.l/a0-a1
 		macro	PHPB0
-		PHP		#$2c							; push flags with B flag clear (NMI, IRQ)
+		move.b	_CPU_regP,d0
+		GetStatus d0
+		;         NV*BDIZC
+		and.b	#%11101111,d0
+		PH										; push flags with B flag clear (NMI, IRQ)
 		endm
 
 		; input:    -
-		; output:   d0.b
+		; output:   -
 		; clobbers: d0.l-d1.l/a0-a1
 		macro	PHPB1
-		PHP		#$3c							; push flags with B flag set (PHP, BRK)
+		move.b	_CPU_regP,d0
+		GetStatus d0
+		PH										; push flags with B flag set (PHP, BRK)
 		endm
 
 		; input:    (clean d0.l)
@@ -969,16 +981,10 @@ C_FLAG	equ		0
 		; clobbers: d0.w
 		macro	PLP
 		PL
-		btst	#C_FLAG,d0
-		sne		C
-		btst	#Z_FLAG,d0
-		seq		Z
-		btst	#V_FLAG,d0
-		sne		V
-		btst	#N_FLAG,d0
-		sne		N
-		and.b	#$0c,d0
-		add.b	#$30,d0
+		PutStatus d0
+		;         NV*BDIZC
+		and.b	#%00001100,d0
+		add.b	#%00110000,d0
 		move.b	d0,_CPU_regP
 		endm
 
@@ -1042,7 +1048,7 @@ _JIT_insn_opcode_00: ;BRK
 		IS_STOP
 		NO_OFFSET_WITH_CYCLES
 .m68k_start:
-		addq.l	#1,reg_PC
+		addq.w	#1,reg_PC						; XXX: if reg_PC is an An, this is handled as .l
 		PHPC
 		PHPB1
 		SetI
@@ -1175,7 +1181,7 @@ _JIT_insn_opcode_10: ;BPL
 		IS_STOP
 		BRANCH_WITH_BYTES_AND_CYCLES
 .m68k_start:
-		tst.b	N
+		tst.w	N
 		bmi.b	.next
 		BRANCH
 .next:	M68K_BYTES_TEMPLATE
@@ -1221,7 +1227,7 @@ _JIT_insn_opcode_17: ;ASO ab,x [unofficial - ASL then ORA with Acc]
 _JIT_insn_opcode_18: ;CLC
 		NO_STOP
 		IMPLIED
-		clr.b	C
+		ClrC
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
 		DONE
@@ -1276,10 +1282,10 @@ _JIT_insn_opcode_20: ;JSR abcd
 		JUMP_WITH_CYCLES
 .m68k_start:
 		move.l	reg_PC,d0
-		addq.l	#1+1,d0									; store PC one byte before next insn
+		addq.w	#1+1,d0									; store PC one byte before next insn
 		PHW
 .m68k_jump:
-		move.w	#$abcd,reg_PC
+		move.l	#$0000abcd,reg_PC
 .m68k_cycles:
 		addq.l	#1,xpos							; 2 - 8
 		rts
@@ -1385,7 +1391,7 @@ _JIT_insn_opcode_30: ;BMI
 		IS_STOP
 		BRANCH_WITH_BYTES_AND_CYCLES
 .m68k_start:
-		tst.b	N
+		tst.w	N
 		bpl.b	.next
 		BRANCH
 .next:	M68K_BYTES_TEMPLATE
@@ -1431,7 +1437,7 @@ _JIT_insn_opcode_37: ;RLA ab,x [unofficial - ROL Mem, then AND with A]
 _JIT_insn_opcode_38: ;SEC
 		NO_STOP
 		IMPLIED
-		st		C
+		SetC
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
 		DONE
@@ -1477,9 +1483,10 @@ _JIT_insn_opcode_40: ;RTI
 		IS_STOP
 		NO_OFFSET_WITH_CYCLES
 .m68k_start:
+		clr.l	d0
 		PLP
 		PLW
-		move.w	d0,reg_PC
+		move.l	d0,reg_PC
 		CHECKIRQ
 .m68k_cycles:
 		addq.l	#1,xpos							; 2 - 8
@@ -1553,7 +1560,7 @@ _JIT_insn_opcode_4c: ;JMP abcd
 		JUMP_WITH_CYCLES
 .m68k_start:
 .m68k_jump:
-		move.w	#$abcd,reg_PC
+		move.l	#$0000abcd,reg_PC
 .m68k_cycles:
 		addq.l	#1,xpos							; 2 - 8
 		rts
@@ -1608,7 +1615,7 @@ _JIT_insn_opcode_53: ;LSE (ab),y [unofficial - LSR then EOR result with A]
 
 _JIT_insn_opcode_55: ;EOR ab,x
 		NO_STOP
-		ZPAGE_X;
+		ZPAGE_X
 		MEMORY_dGetByte
 		EOR6502
 		DONE
@@ -1680,9 +1687,10 @@ _JIT_insn_opcode_60: ;RTS
 		IS_STOP
 		NO_OFFSET_WITH_CYCLES
 .m68k_start:
+		clr.l	d0
 		PLW
 		addq.w	#1,d0
-		move.w	d0,reg_PC
+		move.l	d0,reg_PC
 .m68k_cycles:
 		addq.l	#1,xpos							; 2 - 8
 		; TODO (incl. local->global...)
@@ -1733,8 +1741,8 @@ _JIT_insn_opcode_68: ;PLA
 		IMPLIED
 		PL
 		move.b	d0,reg_A
-		move.b	d0,N
 		move.b	d0,Z
+		ext.w	N
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
 		DONE
@@ -1774,7 +1782,7 @@ _JIT_insn_opcode_6c: ;JMP (abcd)
 .no_bug:
 		MEMORY_dGetWord
 .skip:
-		move.w	d0,reg_PC
+		move.l	d0,reg_PC
 .m68k_cycles:
 		addq.l	#1,xpos							; 2 - 8
 		rts
@@ -1944,8 +1952,8 @@ _JIT_insn_opcode_88: ;DEY
 		NO_STOP
 		IMPLIED
 		subq.b	#1,reg_Y
-		move.b	reg_Y,N
 		move.b	reg_Y,Z
+		ext.w	N
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
 		DONE
@@ -1954,8 +1962,8 @@ _JIT_insn_opcode_8a: ;TXA
 		NO_STOP
 		IMPLIED
 		move.b	reg_X,reg_A
-		move.b	reg_A,N
 		move.b	reg_A,Z
+		ext.w	N
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
 		DONE
@@ -2054,8 +2062,8 @@ _JIT_insn_opcode_98: ;TYA
 		NO_STOP
 		IMPLIED
 		move.b	reg_Y,reg_A
-		move.b	reg_A,N
 		move.b	reg_A,Z
+		ext.w	N
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
 		DONE
@@ -2154,8 +2162,8 @@ _JIT_insn_opcode_a8: ;TAY
 		NO_STOP
 		IMPLIED
 		move.b	reg_A,reg_Y
-		move.b	reg_Y,N
 		move.b	reg_Y,Z
+		ext.w	N
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
 		DONE
@@ -2170,8 +2178,8 @@ _JIT_insn_opcode_aa: ;TAX
 		NO_STOP
 		IMPLIED
 		move.b	reg_A,reg_X
-		move.b	reg_X,N
 		move.b	reg_X,Z
+		ext.w	N
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
 		DONE
@@ -2256,7 +2264,7 @@ _JIT_insn_opcode_b7: ;LAX ab,y [unofficial]
 _JIT_insn_opcode_b8: ;CLV
 		NO_STOP
 		IMPLIED
-		clr.b	V
+		ClrV
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
 		DONE
@@ -2273,8 +2281,8 @@ _JIT_insn_opcode_ba: ;TSX
 		NO_STOP
 		IMPLIED
 		move.b	reg_S+1,reg_X
-		move.b	reg_X,N
 		move.b	reg_X,Z
+		ext.w	N
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
 		DONE
@@ -2348,8 +2356,8 @@ _JIT_insn_opcode_c6: ;DEC ab
 		move.l	d0,-(sp)
 		MEMORY_dGetByte
 		subq.b	#1,d0
-		move.b	d0,N
 		move.b	d0,Z
+		ext.w	N
 		move.b	d0,d1
 		move.l	(sp)+,d0
 		MEMORY_dPutByte
@@ -2365,8 +2373,8 @@ _JIT_insn_opcode_c8: ;INY
 		NO_STOP
 		IMPLIED
 		addq.b	#1,reg_Y
-		move.b	reg_Y,N
 		move.b	reg_Y,Z
+		ext.w	N
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
 		DONE
@@ -2381,8 +2389,8 @@ _JIT_insn_opcode_ca: ;DEX
 		NO_STOP
 		IMPLIED
 		subq.b	#1,reg_X
-		move.b	reg_X,N
 		move.b	reg_X,Z
+		ext.w	N
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
 		DONE
@@ -2411,8 +2419,8 @@ _JIT_insn_opcode_ce: ;DEC abcd
 		move.l	d0,-(sp)
 		RMW_GetByte
 		subq.b	#1,d0
-		move.b	d0,N
 		move.b	d0,Z
+		ext.w	N
 		move.b	d0,d1
 		move.l	(sp)+,d0
 		MEMORY_PutByte
@@ -2460,8 +2468,8 @@ _JIT_insn_opcode_d6: ;DEC ab,x
 		move.l	d0,-(sp)
 		MEMORY_dGetByte
 		subq.b	#1,d0
-		move.b	d0,N
 		move.b	d0,Z
+		ext.w	N
 		move.b	d0,d1
 		move.l	(sp)+,d0
 		MEMORY_dPutByte
@@ -2507,8 +2515,8 @@ _JIT_insn_opcode_de: ;DEC abcd,x
 		move.l	d0,-(sp)
 		RMW_GetByte
 		subq.b	#1,d0
-		move.b	d0,N
 		move.b	d0,Z
+		ext.w	N
 		move.b	d0,d1
 		move.l	(sp)+,d0
 		MEMORY_PutByte
@@ -2557,8 +2565,8 @@ _JIT_insn_opcode_e6: ;INC ab
 		move.l	d0,-(sp)
 		MEMORY_dGetByte
 		addq.b	#1,d0
-		move.b	d0,N
 		move.b	d0,Z
+		ext.w	N
 		move.b	d0,d1
 		move.l	(sp)+,d0
 		MEMORY_dPutByte
@@ -2574,8 +2582,8 @@ _JIT_insn_opcode_e8: ;INX
 		NO_STOP
 		IMPLIED
 		addq.b	#1,reg_X
-		move.b	reg_X,N
 		move.b	reg_X,Z
+		ext.w	N
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
 		DONE
@@ -2614,8 +2622,8 @@ _JIT_insn_opcode_ee: ;INC abcd
 		move.l	d0,-(sp)
 		RMW_GetByte
 		addq.b	#1,d0
-		move.b	d0,N
 		move.b	d0,Z
+		ext.w	N
 		move.b	d0,d1
 		move.l	(sp)+,d0
 		MEMORY_PutByte
@@ -2641,7 +2649,7 @@ _JIT_insn_opcode_f0: ;BEQ
 _JIT_insn_opcode_f1: ;SBC (ab),y
 		NO_STOP
 		INDIRECT_Y
-		NCYCLES_Y;
+		NCYCLES_Y
 		MEMORY_GetByte
 		SBC6502
 		DONE
@@ -2663,8 +2671,8 @@ _JIT_insn_opcode_f6: ;INC ab,x
 		move.l	d0,-(sp)
 		MEMORY_dGetByte
 		addq.b	#1,d0
-		move.b	d0,N
 		move.b	d0,Z
+		ext.w	N
 		move.b	d0,d1
 		move.l	(sp)+,d0
 		MEMORY_dPutByte
@@ -2710,8 +2718,8 @@ _JIT_insn_opcode_fe: ;INC abcd,x
 		move.l	d0,-(sp)
 		RMW_GetByte
 		addq.b	#1,d0
-		move.b	d0,N
 		move.b	d0,Z
+		ext.w	N
 		move.b	d0,d1
 		move.l	(sp)+,d0
 		MEMORY_PutByte
@@ -2752,8 +2760,8 @@ addql_xpos_table:
 
 addql_pc_table:
 		nop
-		addq.l	#1,reg_PC
-		addq.l	#2,reg_PC
-		addq.l	#3,reg_PC
+		addq.w	#1,reg_PC						; XXX: if reg_PC is an An, this is handled as .l
+		addq.w	#2,reg_PC						;
+		addq.w	#3,reg_PC						;
 
 reg_S:	dc.w	$0100
