@@ -939,7 +939,6 @@ $C000 - $D000 (4 KB RAM or OS ROM)
 $D000 - $D800 (hardware)
 $D800 - $FFFF (14 KB RAM or OS ROM)
 
-- CPU_NMI
 - SMC v bloku, kde sa prave nachadza PC
 - zmena move.b d0,d1 na makra, ktore beru d1
 - flush+inv

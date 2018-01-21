@@ -366,10 +366,6 @@ void CPU_PutStatus(void)
 	/* not needed */
 }
 
-void CPU_NMI(void)
-{
-}
-
 void CPU_GO(int limit)
 {
 	if (ANTIC_wsync_halt) {

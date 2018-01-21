@@ -24,6 +24,7 @@ PAGED_ATTRIB	equ	0
 		xref	_ANTIC_xpos
 		xref	_ANTIC_xpos_limit
 		xref	_CPU_IRQ
+		xdef	_CPU_NMI
 		xref	_CPU_regA
 		xref	_CPU_regX
 		xref	_CPU_regY
@@ -1044,6 +1045,31 @@ _CPU_JIT_Instance:
 
 ; ----------------------------------------------
 
+; void CPU_NMI(void);
+_CPU_NMI:
+		move.w	_CPU_regPC,d0
+		PHW
+
+		; PHPB0
+		move.b	_CPU_regP,d0					; _CPU_regP is complete here
+		and.b	#%11101111,d0
+		; PH
+		move.b	d0,d1
+		move.w	reg_S,d0						; reg_S+1 must contain the same value as _CPU_regS
+		subq.b	#1,_CPU_regS					; reg_S+1 shall be updated in CPU_GO()
+		MEMORY_dPutByte
+
+		SetI
+
+		move.l	#$0000fffa,d0
+		MEMORY_dGetWord
+		move.l	d0,reg_PC
+
+		addq.l	#7,_ANTIC_xpos
+		rts
+
+; ----------------------------------------------
+
 _JIT_insn_opcode_00: ;BRK
 		IS_STOP
 		NO_OFFSET_WITH_CYCLES
@@ -1336,6 +1362,7 @@ _JIT_insn_opcode_27: ;RLA ab [unofficial - ROL Mem, then AND with A]
 _JIT_insn_opcode_28: ;PLP
 		NO_STOP
 		IMPLIED
+		clr.l	d0
 		PLP
 		CHECKIRQ
 		M68K_BYTES_TEMPLATE
