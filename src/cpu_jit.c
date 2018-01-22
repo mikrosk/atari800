@@ -174,10 +174,6 @@ static const int JIT_compiler_bytes_table[256] =
 	2, 2, 2, 2, 2, 2, 2, 2, 1, 3, 1, 3, 3, 3, 3, 3		/* Fx */
 };
 
-#define CPUCHECKIRQ /* PLP, RTI, CLI */
-#define UPDATE_LOCAL_REGS
-#define UPDATE_GLOBAL_REGS
-
 struct JIT_block_t {
 	/* address of the first native insn in the block */
 	UBYTE* addr;
@@ -345,6 +341,8 @@ static void execute_code(struct CPU_JIT_native_code_t *native_code)
 {
 	assert(native_code->insn_addr != NULL);
 
+	Log_print("Executing code at: %p", native_code->insn_addr);
+
 	CPU_JIT_Execute(native_code->insn_addr);
 }
 
@@ -384,9 +382,19 @@ void CPU_GO(int limit)
 	}
 	ANTIC_xpos_limit = limit;
 
-	UPDATE_LOCAL_REGS;
+	/* CPUCHECKIRQ */
+#define PH(x)  MEMORY_dPutByte(0x0100 + S--, x)
+#define PHW(x) PH((x) >> 8); PH((x) & 0xff)
+	if (CPU_IRQ && !(CPU_regP & CPU_I_FLAG) && ANTIC_xpos < ANTIC_xpos_limit) {
+		UBYTE S = CPU_regS;
 
-	CPUCHECKIRQ;
+		PHW(CPU_regPC);
+		PH(CPU_regP & 0xef);	/* push flags with B flag clear */
+		CPU_SetI;
+		CPU_regPC = MEMORY_dGetWordAligned(0xfffe);
+		CPU_regS = S;
+		ANTIC_xpos += 7;
+	}
 
 	while (ANTIC_xpos < ANTIC_xpos_limit) {
 		struct CPU_JIT_native_code_t *native_code = find_code(CPU_regPC);
@@ -401,8 +409,6 @@ void CPU_GO(int limit)
 
 		execute_code(native_code);
 	}
-
-	UPDATE_GLOBAL_REGS;
 }
 
 int CPU_JIT_Invalidate(UWORD addr)
