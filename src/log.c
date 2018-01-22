@@ -47,6 +47,7 @@
 char Log_buffer[Log_BUFFER_SIZE];
 #endif
 
+static char* name;
 static int exists(const char *name) {
 	FILE *file;
 	if ((file = fopen(name, "r"))) {
@@ -85,13 +86,15 @@ void Log_print(const char *format, ...)
 	/*PRINT(buffer);*/
 	{
 		FILE *f;
-		char *name = "/dev/nfstderr";
 
-		if (!exists(name)) {
-			name = "atari800.out";
+		if (name == NULL) {
+			name = "/dev/nfstderr";
+			if (!exists(name)) {
+				name = "a800.out";
+			}
 		}
 
-		f = fopen(name,"w");
+		f = fopen(name,"a");
 		if (f) {
 			fprintf(f, "%s", buffer);
 			fclose(f);
