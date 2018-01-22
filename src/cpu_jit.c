@@ -296,7 +296,7 @@ static struct CPU_JIT_native_code_t *compile_code(const UWORD pc) {
 				data = MEMORY_mem[addr+1];
 				if (insn_template->is_stop) {
 					/* special case: bcc */
-					data = addr + ((UWORD) ((SBYTE) data));
+					data = addr + ((UWORD) ((SBYTE) data)) + 2;
 				}
 			} else if (bytes == 3) {
 				native_code++;

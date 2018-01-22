@@ -591,23 +591,6 @@ C_FLAG	equ		0
 
 ; ----------------------------------------------
 
-; TODO: we know what is the value of the PC and the jump destination
-;       so why not calculate it in advance?
-		macro	BRANCH
-.m68k_branch:
-		move.l	#$0000abcd,d0
-		move.w	reg_PC,d1
-		eor.w	d0,d1
-		lsr.w	#8,d1
-		beq.b	.same_page\@
-		addq.l	#1,xpos
-.same_page\@:
-		; CHEATING!!! add the base two cycles + 1 'branch taken' and return
-		addq.l	#2+1,xpos
-		move.l	d0,reg_PC
-		rts
-		endm
-
 		macro	M68K_BYTES_TEMPLATE
 .m68k_bytes:
 		addq.w	#1,reg_PC						; 1 - 3
@@ -624,6 +607,31 @@ C_FLAG	equ		0
 
 		macro	DONE
 .m68k_end:
+		endm
+
+; TODO: we know what is the value of the PC and the jump destination
+;       so why not calculate it in advance?
+		macro	BRANCH							; flag, <size>, <cc>
+.m68k_start:
+.m68k_cycles:
+		addq.l	#1,xpos							; 2 - 8
+		tst.\2	\1
+		b\3.b	.taken\@
+		M68K_BYTES_TEMPLATE
+		rts
+.taken\@:
+.m68k_branch:
+		move.l	#$0000abcd,d0
+		move.w	reg_PC,d1
+		eor.w	d0,d1
+		lsr.w	#8,d1
+		beq.b	.same_page\@
+		addq.l	#1,xpos
+.same_page\@:
+		addq.l	#1,xpos
+		move.l	d0,reg_PC
+		rts
+		DONE
 		endm
 
 ; ---------------------------------------------
@@ -1206,13 +1214,7 @@ _JIT_insn_opcode_0f: ;ASO abcd [unofficial - ASL then ORA with Acc]
 _JIT_insn_opcode_10: ;BPL
 		IS_STOP
 		BRANCH_WITH_BYTES_AND_CYCLES
-.m68k_start:
-		tst.w	N
-		bmi.b	.next
-		BRANCH
-.next:	M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
-		DONE
+		BRANCH N,w,pl
 
 _JIT_insn_opcode_11: ;ORA (ab),y
 		NO_STOP
@@ -1417,13 +1419,7 @@ _JIT_insn_opcode_2f: ;RLA abcd [unofficial - ROL Mem, then AND with A]
 _JIT_insn_opcode_30: ;BMI
 		IS_STOP
 		BRANCH_WITH_BYTES_AND_CYCLES
-.m68k_start:
-		tst.w	N
-		bpl.b	.next
-		BRANCH
-.next:	M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
-		DONE
+		BRANCH N,w,mi
 
 _JIT_insn_opcode_31: ;AND (ab),y
 		NO_STOP
@@ -1620,13 +1616,7 @@ _JIT_insn_opcode_4f: ;LSE abcd [unofficial - LSR then EOR result with A]
 _JIT_insn_opcode_50: ;BVC
 		IS_STOP
 		BRANCH_WITH_BYTES_AND_CYCLES
-.m68k_start:
-		tst.b	V
-		bne.b	.next
-		BRANCH
-.next:	M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
-		DONE
+		BRANCH V,b,eq
 
 _JIT_insn_opcode_51: ;EOR (ab),y
 		NO_STOP
@@ -1842,13 +1832,7 @@ _JIT_insn_opcode_6f: ;RRA abcd [unofficial - ROR Mem, then ADC to Acc]
 _JIT_insn_opcode_70: ;BVS
 		IS_STOP
 		BRANCH_WITH_BYTES_AND_CYCLES
-.m68k_start:
-		tst.b	V
-		beq.b	.next
-		BRANCH
-.next:	M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
-		DONE
+		BRANCH V,b,ne
 
 _JIT_insn_opcode_71: ;ADC (ab),y
 		NO_STOP
@@ -2033,13 +2017,7 @@ _JIT_insn_opcode_8f: ;SAX abcd [unofficial - Store result A AND X]
 _JIT_insn_opcode_90: ;BCC
 		IS_STOP
 		BRANCH_WITH_BYTES_AND_CYCLES
-.m68k_start:
-		tst.b	C
-		bne.b	.next
-		BRANCH
-.next:	M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
-		DONE
+		BRANCH C,b,eq
 
 _JIT_insn_opcode_91: ;STA (ab),y
 		NO_STOP
@@ -2243,13 +2221,7 @@ _JIT_insn_opcode_af: ;LAX abcd [unofficial]
 _JIT_insn_opcode_b0: ;BCS
 		IS_STOP
 		BRANCH_WITH_BYTES_AND_CYCLES
-.m68k_start:
-		tst.b	C
-		beq.b	.next
-		BRANCH
-.next:	M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
-		DONE
+		BRANCH C,b,ne
 
 _JIT_insn_opcode_b1: ;LDA (ab),y
 		NO_STOP
@@ -2462,13 +2434,7 @@ _JIT_insn_opcode_cf: ;DCM abcd [unofficial - DEC Mem then CMP with Acc]
 _JIT_insn_opcode_d0: ;BNE
 		IS_STOP
 		BRANCH_WITH_BYTES_AND_CYCLES
-.m68k_start:
-		tst.b	Z
-		beq.b	.next
-		BRANCH
-.next:	M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
-		DONE
+		BRANCH Z,b,ne
 
 _JIT_insn_opcode_d1: ;CMP (ab),y
 		NO_STOP
@@ -2665,13 +2631,7 @@ _JIT_insn_opcode_ef: ;INS abcd [unofficial - INC Mem then SBC with Acc]
 _JIT_insn_opcode_f0: ;BEQ
 		IS_STOP
 		BRANCH_WITH_BYTES_AND_CYCLES
-.m68k_start:
-		tst.b	Z
-		bne.b	.next
-		BRANCH
-.next:	M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
-		DONE
+		BRANCH Z,b,eq
 
 _JIT_insn_opcode_f1: ;SBC (ab),y
 		NO_STOP
