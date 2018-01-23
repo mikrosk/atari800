@@ -271,9 +271,10 @@ MEMORY_HARDWARE	equ	2
 		xdef	_JIT_insn_opcode_f2
 		xdef	_JIT_insn_opcode_b2
 
+unknown	equ		-1
 no_stop	equ		0
 is_stop	equ		1
-unknown	equ		2
+is_relative_stop equ 2
 
 reg_A	equr	d2								; .b
 reg_X	equr	d3								; .b
@@ -450,6 +451,10 @@ C_FLAG	equ		0
 		dc.w	is_stop
 		endm
 
+		macro	IS_RELATIVE_STOP
+		dc.w	is_relative_stop
+		endm
+
 		macro	NOT_IMPLEMENTED
 		dc.w	unknown
 		endm
@@ -611,15 +616,12 @@ C_FLAG	equ		0
 
 ; TODO: we know what is the value of the PC and the jump destination
 ;       so why not calculate it in advance?
-		macro	BRANCH							; flag, <size>, <cc>
+		macro	BRANCH							; flag, <size>, <!cc>
 .m68k_start:
 .m68k_cycles:
 		addq.l	#1,xpos							; 2 - 8
 		tst.\2	\1
-		b\3.b	.taken\@
-		M68K_BYTES_TEMPLATE
-		rts
-.taken\@:
+		b\3.b	.not_taken\@
 .m68k_branch:
 		move.l	#$0000abcd,d0
 		move.w	reg_PC,d1
@@ -631,6 +633,12 @@ C_FLAG	equ		0
 		addq.l	#1,xpos
 		move.l	d0,reg_PC
 		rts
+.not_taken\@:
+		M68K_BYTES_TEMPLATE
+		cmp.l	_ANTIC_xpos_limit,xpos
+		blt.b	.next_insn\@
+		rts
+.next_insn\@:
 		DONE
 		endm
 
@@ -1212,9 +1220,9 @@ _JIT_insn_opcode_0f: ;ASO abcd [unofficial - ASL then ORA with Acc]
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_10: ;BPL
-		IS_STOP
+		IS_RELATIVE_STOP
 		BRANCH_WITH_BYTES_AND_CYCLES
-		BRANCH N,w,pl
+		BRANCH N,w,mi
 
 _JIT_insn_opcode_11: ;ORA (ab),y
 		NO_STOP
@@ -1417,9 +1425,9 @@ _JIT_insn_opcode_2f: ;RLA abcd [unofficial - ROL Mem, then AND with A]
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_30: ;BMI
-		IS_STOP
+		IS_RELATIVE_STOP
 		BRANCH_WITH_BYTES_AND_CYCLES
-		BRANCH N,w,mi
+		BRANCH N,w,pl
 
 _JIT_insn_opcode_31: ;AND (ab),y
 		NO_STOP
@@ -1614,9 +1622,9 @@ _JIT_insn_opcode_4f: ;LSE abcd [unofficial - LSR then EOR result with A]
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_50: ;BVC
-		IS_STOP
+		IS_RELATIVE_STOP
 		BRANCH_WITH_BYTES_AND_CYCLES
-		BRANCH V,b,eq
+		BRANCH V,b,ne
 
 _JIT_insn_opcode_51: ;EOR (ab),y
 		NO_STOP
@@ -1830,9 +1838,9 @@ _JIT_insn_opcode_6f: ;RRA abcd [unofficial - ROR Mem, then ADC to Acc]
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_70: ;BVS
-		IS_STOP
+		IS_RELATIVE_STOP
 		BRANCH_WITH_BYTES_AND_CYCLES
-		BRANCH V,b,ne
+		BRANCH V,b,eq
 
 _JIT_insn_opcode_71: ;ADC (ab),y
 		NO_STOP
@@ -2015,9 +2023,9 @@ _JIT_insn_opcode_8f: ;SAX abcd [unofficial - Store result A AND X]
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_90: ;BCC
-		IS_STOP
+		IS_RELATIVE_STOP
 		BRANCH_WITH_BYTES_AND_CYCLES
-		BRANCH C,b,eq
+		BRANCH C,b,ne
 
 _JIT_insn_opcode_91: ;STA (ab),y
 		NO_STOP
@@ -2219,9 +2227,9 @@ _JIT_insn_opcode_af: ;LAX abcd [unofficial]
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_b0: ;BCS
-		IS_STOP
+		IS_RELATIVE_STOP
 		BRANCH_WITH_BYTES_AND_CYCLES
-		BRANCH C,b,ne
+		BRANCH C,b,eq
 
 _JIT_insn_opcode_b1: ;LDA (ab),y
 		NO_STOP
@@ -2432,9 +2440,9 @@ _JIT_insn_opcode_cf: ;DCM abcd [unofficial - DEC Mem then CMP with Acc]
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_d0: ;BNE
-		IS_STOP
+		IS_RELATIVE_STOP
 		BRANCH_WITH_BYTES_AND_CYCLES
-		BRANCH Z,b,ne
+		BRANCH Z,b,eq
 
 _JIT_insn_opcode_d1: ;CMP (ab),y
 		NO_STOP
@@ -2629,9 +2637,9 @@ _JIT_insn_opcode_ef: ;INS abcd [unofficial - INC Mem then SBC with Acc]
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_f0: ;BEQ
-		IS_STOP
+		IS_RELATIVE_STOP
 		BRANCH_WITH_BYTES_AND_CYCLES
-		BRANCH Z,b,eq
+		BRANCH Z,b,ne
 
 _JIT_insn_opcode_f1: ;SBC (ab),y
 		NO_STOP
