@@ -334,7 +334,7 @@ C_FLAG	equ		0
 		add.b	N,N								; dn.b: [N]V*BDIZC0
 		smi		V
 		lsl.b	#6,N							; dn.b: [Z]C0000000
-		scs		Z
+		scc		Z								; if Z, then dz = 0 else dz = ff
 		smi		C
 		endm
 
