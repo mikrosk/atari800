@@ -476,28 +476,28 @@ C_FLAG	equ		0
 		endm
 
 		macro	OFFSET_WITH_BYTES_AND_CYCLES	; offset
-		dc.w	\1
+		dc.w	.m68k_data-.m68k_start+\1
 		dc.w	.m68k_bytes-.m68k_start
 		dc.w	.m68k_cycles-.m68k_start
 		dc.w	.m68k_end-.m68k_start
 		endm
 
 		macro	OFFSET_WITH_CYCLES				; offset
-		dc.w	\1
+		dc.w	.m68k_data-.m68k_start+\1
 		dc.w	-1
 		dc.w	.m68k_cycles-.m68k_start
 		dc.w	.m68k_end-.m68k_start
 		endm
 
 		macro	BRANCH_WITH_BYTES_AND_CYCLES
-		dc.w	.m68k_branch-.m68k_start+4
+		dc.w	.m68k_data-.m68k_start+4
 		dc.w	.m68k_bytes-.m68k_start
 		dc.w	.m68k_cycles-.m68k_start
 		dc.w	.m68k_end-.m68k_start
 		endm
 
 		macro	JUMP_WITH_CYCLES
-		dc.w	.m68k_jump-.m68k_start+4
+		dc.w	.m68k_data-.m68k_start+4
 		dc.w	-1
 		dc.w	.m68k_cycles-.m68k_start
 		dc.w	.m68k_end-.m68k_start
@@ -505,37 +505,56 @@ C_FLAG	equ		0
 
 ; ----------------------------------------------
 
+		xref	_DUMP
+		macro	DUMP
+		move.w	reg_PC,_CPU_regPC
+		move.b	reg_A,_CPU_regA
+		move.b	reg_X,_CPU_regX
+		move.b	reg_Y,_CPU_regY
+		jsr		_DUMP
+		endm
+
 		macro	ACCUMULATOR
 		NO_OFFSET_WITH_BYTES_AND_CYCLES
 .m68k_start:
+		DUMP
 		endm
 
 		macro	IMPLIED
 		NO_OFFSET_WITH_BYTES_AND_CYCLES
 .m68k_start:
+		DUMP
 		endm
 
 		macro	IMMEDIATE
 		OFFSET_WITH_BYTES_AND_CYCLES 2
 .m68k_start:
+		DUMP
+.m68k_data:
 		move.b	#$00ab,d0
 		endm
 
 		macro	ABSOLUTE
 		OFFSET_WITH_BYTES_AND_CYCLES 4
 .m68k_start:
+		DUMP
+.m68k_data:
 		move.l	#$0000abcd,d0
 		endm
 
 		macro	ZPAGE
 		OFFSET_WITH_BYTES_AND_CYCLES 4
 .m68k_start:
+		DUMP
+.m68k_data:
 		move.l	#$000000ab,d0
 		endm
 
 		macro	ABSOLUTE_X
 		OFFSET_WITH_BYTES_AND_CYCLES 4
 .m68k_start:
+		DUMP
+.m68k_data:
 		move.l	#$0000abcd,d0
 		add.w	reg_X,d0
 		endm
@@ -543,6 +562,8 @@ C_FLAG	equ		0
 		macro	ABSOLUTE_Y
 		OFFSET_WITH_BYTES_AND_CYCLES 4
 .m68k_start:
+		DUMP
+.m68k_data:
 		move.l	#$0000abcd,d0
 		add.w	reg_Y,d0
 		endm
@@ -550,6 +571,8 @@ C_FLAG	equ		0
 		macro	INDIRECT_X
 		OFFSET_WITH_BYTES_AND_CYCLES 4
 .m68k_start:
+		DUMP
+.m68k_data:
 		move.l	#$000000ab,d0
 		add.b	reg_X,d0
 		MEMORY_dGetWord
@@ -558,6 +581,8 @@ C_FLAG	equ		0
 		macro	INDIRECT_Y
 		OFFSET_WITH_BYTES_AND_CYCLES 4
 .m68k_start:
+		DUMP
+.m68k_data:
 		move.l	#$000000ab,d0
 		MEMORY_dGetWord
 		add.w	reg_Y,d0
@@ -566,6 +591,8 @@ C_FLAG	equ		0
 		macro	ZPAGE_X
 		OFFSET_WITH_BYTES_AND_CYCLES 4
 .m68k_start:
+		DUMP
+.m68k_data:
 		move.l	#$000000ab,d0
 		add.b	reg_X,d0
 		endm
@@ -573,8 +600,15 @@ C_FLAG	equ		0
 		macro	ZPAGE_Y
 		OFFSET_WITH_BYTES_AND_CYCLES 4
 .m68k_start:
+		DUMP
+.m68k_data:
 		move.l	#$000000ab,d0
 		add.b	reg_Y,d0
+		endm
+
+		macro	CUSTOM
+.m68k_start:
+		DUMP
 		endm
 
 ; ----------------------------------------------
@@ -618,11 +652,12 @@ C_FLAG	equ		0
 ;       so why not calculate it in advance?
 		macro	BRANCH							; flag, <size>, <!cc>
 .m68k_start:
+		DUMP
 .m68k_cycles:
 		addq.l	#1,xpos							; 2 - 8
 		tst.\2	\1
 		b\3.b	.not_taken\@
-.m68k_branch:
+.m68k_data:
 		move.l	#$0000abcd,d0
 		move.w	reg_PC,d1
 		eor.w	d0,d1
@@ -1089,7 +1124,7 @@ _CPU_NMI:
 _JIT_insn_opcode_00: ;BRK
 		IS_STOP
 		NO_OFFSET_WITH_CYCLES
-.m68k_start:
+		CUSTOM
 		addq.w	#1,reg_PC						; XXX: if reg_PC is an An, this is handled as .l
 		PHPC
 		PHPB1
@@ -1316,11 +1351,11 @@ _JIT_insn_opcode_1f: ;ASO abcd,x [unofficial - ASL then ORA with Acc]
 _JIT_insn_opcode_20: ;JSR abcd
 		IS_STOP
 		JUMP_WITH_CYCLES
-.m68k_start:
+		CUSTOM
 		move.l	reg_PC,d0
 		addq.w	#1+1,d0									; store PC one byte before next insn
 		PHW
-.m68k_jump:
+.m68k_data:
 		move.l	#$0000abcd,reg_PC
 .m68k_cycles:
 		addq.l	#1,xpos							; 2 - 8
@@ -1513,7 +1548,7 @@ _JIT_insn_opcode_3f: ;RLA abcd,x [unofficial - ROL Mem, then AND with A]
 _JIT_insn_opcode_40: ;RTI
 		IS_STOP
 		NO_OFFSET_WITH_CYCLES
-.m68k_start:
+		CUSTOM
 		clr.l	d0
 		PLP
 		PLW
@@ -1589,8 +1624,8 @@ _JIT_insn_opcode_4b: ;ALR #ab [unofficial - Acc AND Data, LSR result]
 _JIT_insn_opcode_4c: ;JMP abcd
 		IS_STOP
 		JUMP_WITH_CYCLES
-.m68k_start:
-.m68k_jump:
+		CUSTOM
+.m68k_data:
 		move.l	#$0000abcd,reg_PC
 .m68k_cycles:
 		addq.l	#1,xpos							; 2 - 8
@@ -1711,7 +1746,7 @@ _JIT_insn_opcode_5f: ;LSE abcd,x [unofficial - LSR then EOR result with A]
 _JIT_insn_opcode_60: ;RTS
 		IS_STOP
 		NO_OFFSET_WITH_CYCLES
-.m68k_start:
+		CUSTOM
 		clr.l	d0
 		PLW
 		addq.w	#1,d0
@@ -1792,8 +1827,9 @@ _JIT_insn_opcode_6b: ;ARR #ab [unofficial - Acc AND Data, ROR result]
 
 _JIT_insn_opcode_6c: ;JMP (abcd)
 		IS_STOP
-		OFFSET_WITH_CYCLES 4
-.m68k_start:
+		OFFSET_WITH_CYCLES .m68k_data-.m68k_start+4
+		CUSTOM
+.m68k_data:
 		move.l	#$0000abcd,d0
 		cmp.b	#$ff,d0
 		bne.b	.no_bug

@@ -348,8 +348,6 @@ static void execute_code(struct CPU_JIT_native_code_t *native_code)
 {
 	assert(native_code->insn_addr != NULL);
 
-	Log_print("Executing code at: %p", native_code->insn_addr);
-
 	CPU_JIT_Execute(native_code->insn_addr);
 }
 
@@ -369,6 +367,12 @@ void CPU_GetStatus(void)
 void CPU_PutStatus(void)
 {
 	/* not needed */
+}
+
+void DUMP(void)
+{
+    Log_print("insn: %02x PC: %04x A: %02x X: %02x Y: %02x",
+              MEMORY_mem[CPU_regPC], CPU_regPC, CPU_regA, CPU_regX, CPU_regY);
 }
 
 void CPU_GO(int limit)
@@ -411,7 +415,7 @@ void CPU_GO(int limit)
 				/* fatal error */
 				exit(EXIT_FAILURE);
 			}
-			Log_print("code compiled for %x", CPU_regPC);
+			//Log_print("code compiled for %x at %p", CPU_regPC, native_code->insn_addr);
 		}
 
 		execute_code(native_code);
