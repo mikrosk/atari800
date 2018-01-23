@@ -970,7 +970,7 @@ _CPU_JIT_Instance:
 		move.w	d0,d1
 		PL
 		lsl.w	#8,d0
-		or.w	d1,d0
+		move.b	d1,d0
 		endm
 
 		; input:    -
