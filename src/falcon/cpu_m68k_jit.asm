@@ -426,7 +426,6 @@ C_FLAG	equ		0
 		move.l	xpos,_ANTIC_xpos
 		jsr		_MEMORY_HwPutByte
 		move.l	_ANTIC_xpos,xpos
-.no_hardware\@:
 		else
 		movea.l	d0,a0							; backup
 		lsr.l	#8,d0
@@ -439,6 +438,7 @@ C_FLAG	equ		0
 		endif
 .skip\@:
 		addq.l	#8,sp
+.no_hardware\@:
 		endm
 
 ; ----------------------------------------------
