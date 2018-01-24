@@ -175,7 +175,7 @@ static const int JIT_compiler_bytes_table[256] =
 };
 
 enum stop_t {
-    Stop_Unknown = -1,
+    Stop_Unknown = 0xffff,
     Stop_No = 0,
     Stop_Absolute = 1,
     Stop_Relative = 2
@@ -244,7 +244,7 @@ static struct CPU_JIT_native_code_t *compile_code(const UWORD pc) {
 		insn_template = JIT_compiler_insn_table[insn];
 
 		if (insn_template->is_stop == Stop_Unknown) {
-			Log_print("insn %02x not implemented", insn);
+			Log_print("insn %02x at address %04x not implemented", insn, addr);
 			/* not implemented */
 			return NULL;
 		}
@@ -413,7 +413,8 @@ void CPU_GO(int limit)
 			native_code = compile_code(CPU_regPC);
 			if (native_code == NULL) {
 				/* fatal error */
-				exit(EXIT_FAILURE);
+                Atari800_Exit(FALSE);
+                exit(EXIT_FAILURE);
 			}
 			//Log_print("code compiled for %x at %p", CPU_regPC, native_code->insn_addr);
 		}
