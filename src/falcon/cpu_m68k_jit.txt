@@ -944,6 +944,7 @@ $D800 - $FFFF (14 KB RAM or OS ROM)
 - flush+inv
 
 JIT ideas:
+- pozriet format instrukcii a priamo and/or.w #operand, napr. pri imm robime move.b #imm,d0; and.b d0,d2...
 - takmer vzdy viem urcit, ci dana adresa je HW alebo RAM vopred
 - nenechat tam chudaka pocitat, ci JMP prekracuje hranicu a blbosti, to moze urobit aj JIT
 - spravit si dve verzie generovaneho kodu - s porovnavanim cyklov a bez; ak je cely blok kratsi ako limit -> no problem!

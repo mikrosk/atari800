@@ -507,11 +507,12 @@ C_FLAG	equ		0
 
 		xref	_DUMP
 		macro	DUMP
-		move.w	reg_PC,_CPU_regPC
-		move.b	reg_A,_CPU_regA
-		move.b	reg_X,_CPU_regX
-		move.b	reg_Y,_CPU_regY
-		jsr		_DUMP
+		;move.w	reg_PC,_CPU_regPC
+		;move.b	reg_A,_CPU_regA
+		;move.b	reg_X,_CPU_regX
+		;move.b	reg_Y,_CPU_regY
+		;move.b	reg_S+1,_CPU_regS
+		;jsr		_DUMP
 		endm
 
 		macro	ACCUMULATOR
@@ -1098,25 +1099,39 @@ _CPU_JIT_Instance:
 
 ; void CPU_NMI(void);
 _CPU_NMI:
+		ifeq	PAGED_ATTRIB
+		movem.l	mem_attrib/memory,-(sp)
+		lea		_MEMORY_attrib,mem_attrib
+		else
+		movem.l	mem_readmap/mem_writemap/memory,-(sp)
+		lea		_MEMORY_readmap,mem_readmap
+		lea		_MEMORY_writemap,mem_writemap
+		endif
+		lea		_MEMORY_mem,memory
+
 		move.w	_CPU_regPC,d0
-		PHW
+		PHW										; reg_S+1 equals to _CPU_regS
 
 		; PHPB0
 		move.b	_CPU_regP,d0					; _CPU_regP is complete here
 		and.b	#%11101111,d0
-		; PH
-		move.b	d0,d1
-		move.w	reg_S,d0						; reg_S+1 must contain the same value as _CPU_regS
-		subq.b	#1,_CPU_regS					; reg_S+1 shall be updated in CPU_GO()
-		MEMORY_dPutByte
+		PH
 
 		SetI
 
 		move.l	#$0000fffa,d0
 		MEMORY_dGetWord
-		move.l	d0,reg_PC
+		move.w	d0,_CPU_regPC
+
+		move.b	reg_S+1,_CPU_regS
 
 		addq.l	#7,_ANTIC_xpos
+
+		ifeq	PAGED_ATTRIB
+		movem.l	(sp)+,mem_attrib/memory
+		else
+		movem.l	(sp)+,mem_readmap/mem_writemap/memory
+		endif
 		rts
 
 ; ----------------------------------------------
