@@ -251,6 +251,7 @@ static struct CPU_JIT_native_code_t *compile_code(const UWORD pc) {
 
 		if (MEMORY_JIT_mem[addr].insn_addr != NULL) {
 			/* previous code found, insert a jump and stop translation */
+            Log_print("insn %02x at address %04x is already translated at %p", insn, addr, MEMORY_JIT_mem[addr].insn_addr);
 			insn_template = &JIT_insn_opcode_4c;
 		}
 
@@ -377,6 +378,8 @@ void DUMP(void)
 
 void CPU_GO(int limit)
 {
+	//Log_print("%s: %d", __FUNCTION__, limit);
+
 	if (ANTIC_wsync_halt) {
 		if (ANTIC_DRAWING_SCREEN) {
 			if (limit < ANTIC_antic2cpu_ptr[ANTIC_WSYNC_C] + ANTIC_delayed_wsync)
@@ -393,10 +396,13 @@ void CPU_GO(int limit)
 	}
 	ANTIC_xpos_limit = limit;
 
+	//Log_print("%s: continue", __FUNCTION__);
+
 	/* CPUCHECKIRQ */
 #define PH(x)  MEMORY_dPutByte(0x0100 + S--, x)
 #define PHW(x) PH((x) >> 8); PH((x) & 0xff)
 	if (CPU_IRQ && !(CPU_regP & CPU_I_FLAG) && ANTIC_xpos < ANTIC_xpos_limit) {
+		//Log_print("%s: IRQ", __FUNCTION__);
 		UBYTE S = CPU_regS;
 
 		PHW(CPU_regPC);
@@ -416,10 +422,12 @@ void CPU_GO(int limit)
                 Atari800_Exit(FALSE);
                 exit(EXIT_FAILURE);
 			}
-			//Log_print("code compiled for %x at %p", CPU_regPC, native_code->insn_addr);
+			Log_print("code compiled for %x at %p", CPU_regPC, native_code->insn_addr);
 		}
 
+		//Log_print("%s: code executing, PC: %04x, m68k PC: %p", __FUNCTION__, CPU_regPC, native_code->insn_addr);
 		execute_code(native_code);
+		//Log_print("%s: code executed, final PC: %04x, m68k PC: %p", __FUNCTION__, CPU_regPC, native_code->insn_addr);
 	}
 }
 
@@ -431,6 +439,8 @@ int CPU_JIT_Invalidate(UWORD addr)
 	if (native_code->insn_addr == NULL) {
 		return FALSE;
 	}
+
+    Log_print("CPU_JIT_Invalidate %04x, %p", addr, native_code->insn_addr);
 
 	info = native_code->insn_info;
 	assert(info != NULL && info->data_type != Data_Type_None);
@@ -473,6 +483,9 @@ int CPU_JIT_Invalidate(UWORD addr)
 void CPU_JIT_InvalidateMem(UWORD from, UWORD to)
 {
 	UWORD addr;
+
+    Log_print("CPU_JIT_InvalidateMem %04x - %04x", from, to);
+
 	for (addr = from; addr <= to; addr++) {
 		CPU_JIT_Invalidate(addr);
 	}
@@ -481,6 +494,9 @@ void CPU_JIT_InvalidateMem(UWORD from, UWORD to)
 void CPU_JIT_InvalidateAllocatedCode(struct CPU_JIT_native_code_t *native_code, int count)
 {
 	int i;
+
+    Log_print("CPU_JIT_InvalidateAllocatedCode %p, %d", native_code->insn_addr, count);
+
 	for (i = 0; i < count; i++) {
 		struct JIT_native_code_info_t *info = native_code[i].insn_info;
 
