@@ -277,20 +277,6 @@ static void AllocMapRAM(void)
 	}
 }
 
-#ifdef CPU_JIT
-void MEMORY_dPutByte(UWORD addr, UBYTE value)
-{
-	MEMORY_mem[addr] = value;
-	CPU_JIT_Invalidate(addr);
-}
-void MEMORY_dPutWord(UWORD addr, UWORD value)
-{
-	MEMORY_mem[addr] = (UBYTE)value;
-	MEMORY_mem[addr+1] = (UBYTE)(value >> 8);
-	CPU_JIT_InvalidateMem(addr, addr+1);
-}
-#endif
-
 void MEMORY_dCopyFromMem(UWORD from, void* to, size_t size)
 {
 	memcpy(to, MEMORY_mem + from, size);

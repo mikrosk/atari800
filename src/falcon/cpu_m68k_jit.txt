@@ -942,6 +942,8 @@ $D800 - $FFFF (14 KB RAM or OS ROM)
 - SMC v bloku, kde sa prave nachadza PC
 - zmena move.b d0,d1 na makra, ktore beru d1
 - flush+inv
+- v MEMORY_StateRead() musim tiez pomazat vsetko, co suvisi s JIT pamatou
+- v MEMORY_InitialiseMachine() musim pomazat vsetko tiez
 
 JIT ideas:
 - pozriet format instrukcii a priamo and/or.w #operand, napr. pri imm robime move.b #imm,d0; and.b d0,d2...

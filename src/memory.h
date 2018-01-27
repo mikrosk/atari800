@@ -9,11 +9,7 @@
 #endif
 
 #define MEMORY_dGetByte(x)				(MEMORY_mem[x])
-#ifndef CPU_JIT
 #define MEMORY_dPutByte(x, y)			(MEMORY_mem[x] = y)
-#else
-void MEMORY_dPutByte(UWORD addr, UBYTE value);
-#endif
 
 #if !defined(WORDS_BIGENDIAN) && defined(WORDS_UNALIGNED_OK) && !defined(CPU_JIT)
 #define MEMORY_dGetWord(x)				UNALIGNED_GET_WORD(MEMORY_mem+(x), memory_read_word_stat)
@@ -23,11 +19,7 @@ void MEMORY_dPutByte(UWORD addr, UBYTE value);
 #else
 /* can't or don't want to do word optimizations */
 #define MEMORY_dGetWord(x)				(MEMORY_mem[x] + (MEMORY_mem[(x) + 1] << 8))
-#ifndef CPU_JIT
 #define MEMORY_dPutWord(x, y)			(MEMORY_mem[x] = (UBYTE) (y), MEMORY_mem[(x) + 1] = (UBYTE) ((y) >> 8))
-#else
-void MEMORY_dPutWord(UWORD addr, UWORD value);
-#endif
 /* faster versions of MEMORY_dGetWord and MEMORY_dPutWord for even addresses */
 /* TODO: guarantee that memory is UWORD-aligned and use UWORD access */
 #define MEMORY_dGetWordAligned(x)		MEMORY_dGetWord(x)

@@ -41,7 +41,6 @@ MEMORY_HARDWARE	equ	2
 		xref	_MEMORY_readmap					; MEMORY_rdfunc MEMORY_readmap[256]
 		xref	_MEMORY_writemap				; MEMORY_writemap MEMORY_readmap[256]
 		endif
-		xref	_MEMORY_dPutByte				; MEMORY_dPutByte(UWORD addr, UBYTE value);
 		xref	_MEMORY_mem
 
 		xdef	_CPU_JIT_Execute
@@ -371,13 +370,8 @@ C_FLAG	equ		0
 		ror.w	#8,d0
 		endm
 
-; TODO: introduce MEMORY_CODE / -1 as an indicator that this page
-; contains (or doesn't) code
 		macro	MEMORY_dPutByte					; d0.l: addr, d1.b: value
-		move.l	d1,-(sp)
-		move.l	d0,-(sp)
-		jsr		_MEMORY_dPutByte
-		addq.l	#8,sp
+		move.b	d1,(0.b,memory,d0.l*1)
 		endm
 
 		macro	MEMORY_GetByte					; d0.l: addr
@@ -406,39 +400,49 @@ C_FLAG	equ		0
 		bra.b	.skip\@
 		endif
 .no_hardware\@:
-		move.b	(0.b,memory,d0.l*1),d0
+		MEMORY_dGetByte
 .skip\@:
+		endm
+
+; TODO: introduce MEMORY_CODE / -1 as an indicator that this page
+; contains (or doesn't) code
+		macro	MEMORY_PutByte_ZP				; d0.l: addr, d1.b: value
+		ifeq	PAGED_ATTRIB
+		MEMORY_dPutByte
+		else
+		MEMORY_dPutByte
+		endif
 		endm
 
 		macro	MEMORY_PutByte					; d0.l: addr, d1.b: value
 		ifeq	PAGED_ATTRIB
 		cmpi.b	#MEMORY_RAM,(0.b,mem_attrib,d0.l*1)
-		bne.b	.no_ram\@
-		move.l	d1,-(sp)						; value
-		move.l	d0,-(sp)						; addr
-		jsr		_MEMORY_dPutByte
-		bra.b	.skip\@
-.no_ram\@:
+		beq.b	.no_hardware\@
 		cmpi.b	#MEMORY_HARDWARE,(0.b,mem_attrib,d0.l*1)
-		bne.b	.no_hardware\@
+		bne.b	.skip\@
 		move.l	d1,-(sp)						; value
 		move.l	d0,-(sp)						; addr
 		move.l	xpos,_ANTIC_xpos
 		jsr		_MEMORY_HwPutByte
 		move.l	_ANTIC_xpos,xpos
 		else
-		movea.l	d0,a0							; backup
+		movea.l	d0,a0
 		lsr.l	#8,d0
 		movea.l	(0.b,mem_writemap,d0.l*4),a1
+		move.l	a0,d0
+		tst.l	a1
+		beq.b	.no_hardware\@
 		move.l	d1,-(sp)						; value
-		move.l	a0,-(sp)						; addr
+		move.l	d0,-(sp)						; addr
 		move.l	xpos,_ANTIC_xpos
 		jsr		(a1)
 		move.l	_ANTIC_xpos,xpos
 		endif
-.skip\@:
 		addq.l	#8,sp
+		bra.b	.skip\@
 .no_hardware\@:
+		MEMORY_dPutByte
+.skip\@:
 		endm
 
 ; ----------------------------------------------
@@ -977,9 +981,9 @@ _CPU_JIT_Instance:
 		MEMORY_dGetByte
 		endm
 
-		; input:    d0.b
+		; input:    d0.b (clean d0.l)
 		; output:   -
-		; clobbers: d0.l-d1.l/a0-a1
+		; clobbers: d0.w, d1.b
 		macro	PH
 		move.b	d0,d1
 		move.w	reg_S,d0
@@ -987,14 +991,14 @@ _CPU_JIT_Instance:
 		MEMORY_dPutByte
 		endm
 
-		; input:    d0.w (big endian)
+		; input:    d0.w (big endian, clean d0.l)
 		; output:   -
-		; clobbers: d0.l-d1.l/a0-a1
+		; clobbers: d0.w, d1.b, a0
 		macro	PHW
-		move.w	d0,-(sp)
+		move.l	d0,a0
 		lsr.w	#8,d0
 		PH
-		move.w	(sp)+,d0
+		move.l	a0,d0
 		PH
 		endm
 
@@ -1009,9 +1013,9 @@ _CPU_JIT_Instance:
 		move.b	d1,d0
 		endm
 
-		; input:    -
+		; input:    (clean d0.l)
 		; output:   -
-		; clobbers: d0.l-d1.l/a0-a1
+		; clobbers: d0.w, d1.b
 		macro	PHPB0
 		move.b	_CPU_regP,d0
 		GetStatus d0
@@ -1020,9 +1024,9 @@ _CPU_JIT_Instance:
 		PH										; push flags with B flag clear (NMI, IRQ)
 		endm
 
-		; input:    -
+		; input:    (clean d0.l)
 		; output:   -
-		; clobbers: d0.l-d1.l/a0-a1
+		; clobbers: d0.w, d1.b
 		macro	PHPB1
 		move.b	_CPU_regP,d0
 		GetStatus d0
@@ -1041,17 +1045,17 @@ _CPU_JIT_Instance:
 		move.b	d0,_CPU_regP
 		endm
 
-		; input:    -
+		; input:    (clean d0.l)
 		; output:   -
-		; clobbers: d0.l-d1.l/a0-a1
+		; clobbers: d0.w, d1.b, a0
 		macro	PHPC
 		move.l	reg_PC,d0
 		PHW
 		endm
 
-		; input:    -
+		; input:    (clean d0.l)
 		; output:   -
-		; clobbers: d0.l-d1.l/a0-a1
+		; clobbers: d0.w, d1.b, a0
 		macro	CHECKIRQ
 		tst.b	_CPU_IRQ
 		beq.b	.skip\@
@@ -1108,6 +1112,7 @@ _CPU_NMI:
 		lea		_MEMORY_writemap,mem_writemap
 		endif
 		lea		_MEMORY_mem,memory
+		clr.l	d0
 
 		move.w	_CPU_regPC,d0
 		PHW										; reg_S+1 equals to _CPU_regS
@@ -1141,6 +1146,7 @@ _JIT_insn_opcode_00: ;BRK
 		NO_OFFSET_WITH_CYCLES
 		CUSTOM
 		addq.w	#1,reg_PC						; XXX: if reg_PC is an An, this is handled as .l
+		clr.l	d0
 		PHPC
 		PHPB1
 		SetI
@@ -1214,6 +1220,7 @@ _JIT_insn_opcode_07: ;ASO ab [unofficial - ASL then ORA with Acc]
 _JIT_insn_opcode_08: ;PHP
 		NO_STOP
 		IMPLIED
+		clr.l	d0
 		PHPB1
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
@@ -1301,7 +1308,7 @@ _JIT_insn_opcode_16: ;ASL ab,x
 		ASL_ONLY d0
 		move.b	d0,d1
 		move.l	(sp)+,d0
-		MEMORY_dPutByte
+		MEMORY_PutByte_ZP
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
 		DONE
@@ -1410,7 +1417,7 @@ _JIT_insn_opcode_26: ;ROL ab
 		ROL_ONLY d0
 		move.b	d0,d1
 		move.l	(sp)+,d0
-		MEMORY_dPutByte
+		MEMORY_PutByte_ZP
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
 		DONE
@@ -1506,7 +1513,7 @@ _JIT_insn_opcode_36: ;ROL ab,x
 		ROR_ONLY d0
 		move.b	d0,d1
 		move.l	(sp)+,d0
-		MEMORY_dPutByte
+		MEMORY_PutByte_ZP
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
 		DONE
@@ -1600,7 +1607,7 @@ _JIT_insn_opcode_46: ;LSR ab
 		LSR_ONLY d0
 		move.b	d0,d1
 		move.l	(sp)+,d0
-		MEMORY_dPutByte
+		MEMORY_PutByte_ZP
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
 		DONE
@@ -1612,7 +1619,7 @@ _JIT_insn_opcode_47: ;LSE ab [unofficial - LSR then EOR result with A]
 _JIT_insn_opcode_48: ;PHA
 		NO_STOP
 		IMPLIED
-		move.b	reg_A,d0
+		move.l	reg_A,d0
 		PH
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
@@ -1703,7 +1710,7 @@ _JIT_insn_opcode_56: ;LSR ab,x
 		LSR_ONLY d0
 		move.b	d0,d1
 		move.l	(sp)+,d0
-		MEMORY_dPutByte
+		MEMORY_PutByte_ZP
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
 		DONE
@@ -1716,6 +1723,7 @@ _JIT_insn_opcode_58: ;CLI
 		NO_STOP
 		IMPLIED
 		ClrI
+		clr.l	d0
 		CHECKIRQ
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
@@ -1802,7 +1810,7 @@ _JIT_insn_opcode_66: ;ROR ab
 		ROR_ONLY d0
 		move.b	d0,d1
 		move.l	(sp)+,d0
-		MEMORY_dPutByte
+		MEMORY_PutByte_ZP
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
 		DONE
@@ -1920,7 +1928,7 @@ _JIT_insn_opcode_76: ;ROR ab,x
 		ROR_ONLY d0
 		move.b	d0,d1
 		move.l	(sp)+,d0
-		MEMORY_dPutByte
+		MEMORY_PutByte_ZP
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
 		DONE
@@ -1991,7 +1999,7 @@ _JIT_insn_opcode_84: ;STY ab
 		NO_STOP
 		ZPAGE
 		move.b	reg_Y,d1
-		MEMORY_dPutByte
+		MEMORY_PutByte_ZP
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
 		DONE
@@ -2000,7 +2008,7 @@ _JIT_insn_opcode_85: ;STA ab
 		NO_STOP
 		ZPAGE
 		move.b	reg_A,d1
-		MEMORY_dPutByte
+		MEMORY_PutByte_ZP
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
 		DONE
@@ -2009,7 +2017,7 @@ _JIT_insn_opcode_86: ;STX ab
 		NO_STOP
 		ZPAGE
 		move.b	reg_X,d1
-		MEMORY_dPutByte
+		MEMORY_PutByte_ZP
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
 		DONE
@@ -2095,7 +2103,7 @@ _JIT_insn_opcode_94: ;STY ab,x
 		NO_STOP
 		ZPAGE_X
 		move.b	reg_Y,d1
-		MEMORY_dPutByte
+		MEMORY_PutByte_ZP
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
 		DONE
@@ -2104,7 +2112,7 @@ _JIT_insn_opcode_95: ;STA ab,x
 		NO_STOP
 		ZPAGE_X
 		move.b	reg_A,d1
-		MEMORY_dPutByte
+		MEMORY_PutByte_ZP
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
 		DONE
@@ -2113,7 +2121,7 @@ _JIT_insn_opcode_96: ;STX ab,y
 		NO_STOP
 		ZPAGE_X
 		move.b	reg_X,d1
-		MEMORY_dPutByte
+		MEMORY_PutByte_ZP
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
 		DONE
@@ -2418,7 +2426,7 @@ _JIT_insn_opcode_c6: ;DEC ab
 		ext.w	N
 		move.b	d0,d1
 		move.l	(sp)+,d0
-		MEMORY_dPutByte
+		MEMORY_PutByte_ZP
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
 		DONE
@@ -2524,7 +2532,7 @@ _JIT_insn_opcode_d6: ;DEC ab,x
 		ext.w	N
 		move.b	d0,d1
 		move.l	(sp)+,d0
-		MEMORY_dPutByte
+		MEMORY_PutByte_ZP
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
 		DONE
@@ -2621,7 +2629,7 @@ _JIT_insn_opcode_e6: ;INC ab
 		ext.w	N
 		move.b	d0,d1
 		move.l	(sp)+,d0
-		MEMORY_dPutByte
+		MEMORY_PutByte_ZP
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
 		DONE
@@ -2721,7 +2729,7 @@ _JIT_insn_opcode_f6: ;INC ab,x
 		ext.w	N
 		move.b	d0,d1
 		move.l	(sp)+,d0
-		MEMORY_dPutByte
+		MEMORY_PutByte_ZP
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
 		DONE
