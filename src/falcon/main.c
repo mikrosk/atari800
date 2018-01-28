@@ -382,7 +382,7 @@ int PLATFORM_Initialise(int *argc, char *argv[])
 
 #ifdef CPU_JIT
     /* save CPU type */
-    Getcookie(C__CPU, &host_cpu);
+    Getcookie(C__CPU, (long*)&host_cpu);
 #endif
 
 	/* check for VIDEL hardware */
