@@ -1408,9 +1408,9 @@ _JIT_insn_opcode_28: ;PLP
 		IMPLIED
 		clr.l	d0
 		PLP
-		CHECKIRQ
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
+		CHECKIRQ
 		DONE
 
 _JIT_insn_opcode_29: ;AND #ab
@@ -1552,9 +1552,9 @@ _JIT_insn_opcode_40: ;RTI
 		PLP
 		PLW
 		move.l	d0,reg_PC
-		CHECKIRQ
 .m68k_cycles:
 		addq.l	#1,xpos							; 2 - 8
+		CHECKIRQ
 		rts
 		DONE
 
@@ -1700,10 +1700,10 @@ _JIT_insn_opcode_58: ;CLI
 		NO_STOP
 		IMPLIED
 		ClrI
-		clr.l	d0
-		CHECKIRQ
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
+		clr.l	d0
+		CHECKIRQ
 		DONE
 
 _JIT_insn_opcode_59: ;EOR abcd,y
