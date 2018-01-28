@@ -401,6 +401,31 @@ C_FLAG	equ		0
 .skip\@:
 		endm
 
+		; input:    d0.l
+		; output:   d0.b
+		; clobbers: d0.l-d1.l/a0-a1
+		macro	RMW_GetByte
+		move.l	d0,-(sp)
+		MEMORY_GetByte
+		; d0.b: value
+		movea.l	(sp)+,a0
+		move.l	a0,d1
+		and.w	#$ef00,d1
+		cmp.w	#$c000,d1
+		bne.b	.skip_rmw\@
+		move.b	d0,-(sp)
+		move.l	d0,-(sp)						; value
+		move.l	a0,-(sp)						; addr
+		subq.l	#1,xpos
+		move.l	xpos,_ANTIC_xpos
+		jsr		_MEMORY_HwPutByte
+		move.l	_ANTIC_xpos,xpos
+		addq.l	#1,xpos
+		addq.l	#8,sp
+		move.b	(sp)+,d0
+.skip_rmw\@:
+		endm
+
 ; ----------------------------------------------
 
 		macro	NO_STOP
@@ -1047,31 +1072,6 @@ _CPU_JIT_Instance:
 		addq.l	#7,xpos
 		rts
 .skip\@:
-		endm
-
-		; input:    d0.l
-		; output:   d0.b
-		; clobbers: d0.l-d1.l/a0-a1
-		macro	RMW_GetByte
-		move.l	d0,-(sp)
-		MEMORY_GetByte
-		; d0.b: value
-		movea.l	(sp)+,a0
-		move.l	a0,d1
-		and.w	#$ef00,d1
-		cmp.w	#$c000,d1
-		bne.b	.skip_rmw\@
-		move.b	d0,-(sp)
-		move.l	d0,-(sp)						; value
-		move.l	a0,-(sp)						; addr
-		subq.l	#1,xpos
-		move.l	xpos,_ANTIC_xpos
-		jsr		_MEMORY_HwPutByte
-		move.l	_ANTIC_xpos,xpos
-		addq.l	#1,xpos
-		addq.l	#8,sp
-		move.b	(sp)+,d0
-.skip_rmw\@:
 		endm
 
 ; ----------------------------------------------
