@@ -37,10 +37,12 @@ MEMORY_HARDWARE	equ	2
 		xref	_MEMORY_HwGetByte				; UBYTE MEMORY_HwGetByte(UWORD addr, int no_side_effects)
 		xref	_MEMORY_HwPutByte				; void MEMORY_HwPutByte(UWORD addr, UBYTE byte)
 		xref	_MEMORY_mem						; UBYTE MEMORY_mem[65536 + 2]
+		xref	_MEMORY_JIT_mem					; struct CPU_JIT_native_code_t MEMORY_JIT_mem[65536 + 2]
 
 		xdef	_host_cpu
 		xdef	_CPU_JIT_Execute
 		xdef	_CPU_JIT_Instance
+		xref	_CPU_JIT_Invalidate				; CPU_JIT_Invalidate(const UWORD addr)
 
 		xdef	_JIT_insn_opcode_00
 		xdef	_JIT_insn_opcode_01
@@ -281,6 +283,7 @@ C		equr	d7								; .b (< 0   => C flag set)
 
 memory	equr	a2								; .l
 mem_attrib equr	a3
+memory_jit equr	a4
 reg_PC	equr	a5								; .w (must be written as long due to sign extension)
 xpos	equr	a6								; .l, ANTIC_xpos mirror
 
@@ -378,6 +381,11 @@ C_FLAG	equ		0
 ; TODO: introduce MEMORY_CODE / -1 as an indicator that this page
 ; contains (or doesn't) code
 		macro	MEMORY_PutByte_ZP				; d0.l: addr, d1.b: value
+		tst.l	(0.b,memory_jit,d0.l*8)			; UBYTE *insn_addr
+		beq.b	.no_code\@
+		pea		(.no_code\@,pc)
+		jmp		JIT_Invalidate
+.no_code\@:
 		MEMORY_dPutByte
 		endm
 
@@ -389,6 +397,11 @@ C_FLAG	equ		0
 		pea		(.skip\@,pc)
 		jmp		MEMORY_HwPutByte
 .no_hardware\@:
+		tst.l	(0.b,memory_jit,d0.l*8)			; UBYTE *insn_addr
+		beq.b	.no_code\@
+		pea		(.no_code\@,pc)
+		jmp		JIT_Invalidate
+.no_code\@:
 		MEMORY_dPutByte
 .skip\@:
 		endm
@@ -681,8 +694,9 @@ _CPU_JIT_Execute:
 		PutStatus d0
 		and.b	#%00111100,_CPU_regP			; NV*BDIZC -> 00*BDI00
 
-		lea		_MEMORY_attrib,mem_attrib
 		lea		_MEMORY_mem,memory
+		lea		_MEMORY_attrib,mem_attrib
+		lea		_MEMORY_JIT_mem,memory_jit
 		move.l	_ANTIC_xpos,xpos
 
 		jsr		(a0)
@@ -1072,8 +1086,7 @@ _CPU_JIT_Instance:
 
 ; void CPU_NMI(void);
 _CPU_NMI:
-		movem.l	mem_attrib/memory,-(sp)
-		lea		_MEMORY_attrib,mem_attrib
+		move.l	memory,-(sp)
 		lea		_MEMORY_mem,memory
 		clr.l	d0
 
@@ -1095,7 +1108,7 @@ _CPU_NMI:
 
 		addq.l	#7,_ANTIC_xpos
 
-		movem.l	(sp)+,mem_attrib/memory
+		move.l	(sp)+,memory
 		rts
 
 MEMORY_HwGetByte:
@@ -1114,6 +1127,14 @@ MEMORY_HwPutByte:
 		jsr		_MEMORY_HwPutByte
 		move.l	_ANTIC_xpos,xpos
 		addq.l	#8,sp
+		rts
+
+JIT_Invalidate:
+		move.l	d1,-(sp)
+		move.l	d0,-(sp)
+		jsr		_CPU_JIT_Invalidate
+		move.l	(sp)+,d0
+		move.l	(sp)+,d1
 		rts
 
 ; ----------------------------------------------
