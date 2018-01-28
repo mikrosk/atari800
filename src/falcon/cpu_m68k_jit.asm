@@ -43,6 +43,7 @@ MEMORY_HARDWARE	equ	2
 		endif
 		xref	_MEMORY_mem
 
+		xdef	_host_cpu
 		xdef	_CPU_JIT_Execute
 		xdef	_CPU_JIT_Instance
 
@@ -771,6 +772,29 @@ _CPU_JIT_Instance:
 		move.l	(20,sp),d1						; d1.l: cycles
 		move.w	(addql_xpos_table.l,pc,d1.l*2),(0.b,a1,d0.w*1)
 .no_cycles:
+		movem.l	d2/a2,-(sp)
+		pea		.clear_cache
+		move.w	#38,-(sp)
+		trap	#14
+		addq.l	#6,sp
+		movem.l	(sp)+,d2/a2
+		rts
+
+; TODO: per entry operation
+.clear_cache:
+		cmpi.l	#40,_host_cpu
+		bge.b	.cpu040_60
+.cpu030:
+		movec	cacr,d0
+		or.b	#%00001000,d0					; CI bit (clear i-cache)
+		movec	d0,cacr
+		rts
+.cpu040_60:
+		move	sr,d0
+		ori		#$0700,sr						; ints off
+		nop										; fix for some broken 040s
+		cpusha	bc								; flush (and possibly invalidate) d-cache & invalidate i-cache
+		move	d0,sr							; ints back
 		rts
 
 ; ----------------------------------------------
@@ -2820,3 +2844,10 @@ addql_pc_table:
 		addq.w	#3,reg_PC						;
 
 reg_S:	dc.w	$0100
+
+; ---------------------------------------------
+		section	bss
+; ---------------------------------------------
+
+_host_cpu:
+		ds.l	1								; 30 = 68030, 40 = 68040, 60 = 68060

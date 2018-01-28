@@ -38,6 +38,9 @@
 #include "atari.h"
 #include "binload.h"
 #include "colours.h"
+#ifdef CPU_JIT
+#include "cpu_jit.h"
+#endif
 #include "ui.h"
 #include "input.h"
 #include "akey.h"
@@ -50,6 +53,10 @@
 #include "util.h"
 
 #include "falcon/xcb.h"		/* for NOVA screensaver */
+
+#ifdef CPU_JIT
+extern ULONG host_cpu;
+#endif
 
 /* -------------------------------------------------------------------------- */
 
@@ -372,6 +379,11 @@ int PLATFORM_Initialise(int *argc, char *argv[])
 			coltable[i][2] = (b/4) * 1000 / 63;
 		}
 	}
+
+#ifdef CPU_JIT
+    /* save CPU type */
+    Getcookie(C__CPU, &host_cpu);
+#endif
 
 	/* check for VIDEL hardware */
 	if (Getcookie(C__VDO, &video_hardware) == C_NOTFOUND)
