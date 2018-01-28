@@ -131,6 +131,10 @@ UBYTE CPU_IRQ;
 #error cpu_m68k_jit.asm does not support crash menu
 #endif
 
+#ifndef NEW_CYCLE_EXACT
+#error cpu_m68k_jit.asm does not support cycle inexact emulation
+#endif
+
 #else
 
 /* Windows headers define it */

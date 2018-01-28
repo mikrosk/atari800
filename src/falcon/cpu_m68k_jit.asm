@@ -41,7 +41,7 @@ MEMORY_HARDWARE	equ	2
 		xref	_MEMORY_readmap					; MEMORY_rdfunc MEMORY_readmap[256]
 		xref	_MEMORY_writemap				; MEMORY_writemap MEMORY_readmap[256]
 		endif
-		xref	_MEMORY_mem
+		xref	_MEMORY_mem						; UBYTE MEMORY_mem[65536 + 2]
 
 		xdef	_host_cpu
 		xdef	_CPU_JIT_Execute
@@ -1112,7 +1112,7 @@ _CPU_JIT_Instance:
 		cmp.w	#$c000,d1
 		bne.b	.skip_rmw\@
 		move.b	d0,-(sp)
-		move.l	d1,-(sp)						; value (should be the old one but it doesn't matter)
+		move.l	d0,-(sp)						; value
 		move.l	a0,-(sp)						; addr
 		subq.l	#1,xpos
 		move.l	xpos,_ANTIC_xpos

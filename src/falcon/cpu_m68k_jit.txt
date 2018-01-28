@@ -939,10 +939,10 @@ $C000 - $D000 (4 KB RAM or OS ROM)
 $D000 - $D800 (hardware)
 $D800 - $FFFF (14 KB RAM or OS ROM)
 
-- SMC v bloku, kde sa prave nachadza PC
 - zmena move.b d0,d1 na makra, ktore beru d1
 - v MEMORY_StateRead() musim tiez pomazat vsetko, co suvisi s JIT pamatou
 - v MEMORY_InitialiseMachine() musim pomazat vsetko tiez
+- zistit, preco sa obcas WSYNC counter lisi...
 
 JIT ideas:
 - pozriet format instrukcii a priamo and/or.w #operand, napr. pri imm robime move.b #imm,d0; and.b d0,d2...
