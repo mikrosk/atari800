@@ -19,8 +19,6 @@
 ; along with Atari800; if not, write to the Free Software
 ; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
-PAGED_ATTRIB	equ	0
-
 		xref	_ANTIC_xpos
 		xref	_ANTIC_xpos_limit
 		xref	_CPU_IRQ
@@ -30,17 +28,12 @@ PAGED_ATTRIB	equ	0
 		xref	_CPU_regY
 		xref	_CPU_regP
 		xref	_CPU_regS
-		ifeq	PAGED_ATTRIB
 MEMORY_RAM		equ	0
 MEMORY_ROM		equ	1
 MEMORY_HARDWARE	equ	2
 		xref	_MEMORY_attrib					; UBYTE MEMORY_attrib[65536];
 		xref	_MEMORY_HwGetByte				; UBYTE MEMORY_HwGetByte(UWORD addr, int no_side_effects)
 		xref	_MEMORY_HwPutByte				; void MEMORY_HwPutByte(UWORD addr, UBYTE byte)
-		else
-		xref	_MEMORY_readmap					; MEMORY_rdfunc MEMORY_readmap[256]
-		xref	_MEMORY_writemap				; MEMORY_writemap MEMORY_readmap[256]
-		endif
 		xref	_MEMORY_mem						; UBYTE MEMORY_mem[65536 + 2]
 
 		xdef	_host_cpu
@@ -285,12 +278,7 @@ Z		equr	d5								; .b (== 0  => Z flag set)
 C		equr	d7								; .b (< 0   => C flag set)
 
 memory	equr	a2								; .l
-		ifeq	PAGED_ATTRIB
 mem_attrib equr	a3
-		else
-mem_readmap equr a3
-mem_writemap equr a4
-		endif
 reg_PC	equr	a5								; .w (must be written as long due to sign extension)
 xpos	equr	a6								; .l, ANTIC_xpos mirror
 
@@ -376,7 +364,6 @@ C_FLAG	equ		0
 		endm
 
 		macro	MEMORY_GetByte					; d0.l: addr
-		ifeq	PAGED_ATTRIB
 		cmpi.b	#MEMORY_HARDWARE,(0.b,mem_attrib,d0.l*1)
 		bne.b	.no_hardware\@
 		clr.l	-(sp)							; FALSE (no side effects)
@@ -386,20 +373,6 @@ C_FLAG	equ		0
 		move.l	_ANTIC_xpos,xpos
 		addq.l	#8,sp
 		bra.b	.skip\@
-		else
-		move.l	d0,d1
-		lsr.l	#8,d1
-		move.l	(0.b,mem_readmap,d1.l*4),d1
-		beq.b	.no_hardware\@
-		movea.l	d1,a0
-		clr.l	-(sp)							; FALSE (no side effects)
-		move.l	d0,-(sp)						; addr
-		move.l	xpos,_ANTIC_xpos
-		jsr		(a0)
-		move.l	_ANTIC_xpos,xpos
-		addq.l	#8,sp
-		bra.b	.skip\@
-		endif
 .no_hardware\@:
 		MEMORY_dGetByte
 .skip\@:
@@ -408,15 +381,10 @@ C_FLAG	equ		0
 ; TODO: introduce MEMORY_CODE / -1 as an indicator that this page
 ; contains (or doesn't) code
 		macro	MEMORY_PutByte_ZP				; d0.l: addr, d1.b: value
-		ifeq	PAGED_ATTRIB
 		MEMORY_dPutByte
-		else
-		MEMORY_dPutByte
-		endif
 		endm
 
 		macro	MEMORY_PutByte					; d0.l: addr, d1.b: value
-		ifeq	PAGED_ATTRIB
 		cmpi.b	#MEMORY_RAM,(0.b,mem_attrib,d0.l*1)
 		beq.b	.no_hardware\@
 		cmpi.b	#MEMORY_HARDWARE,(0.b,mem_attrib,d0.l*1)
@@ -426,19 +394,6 @@ C_FLAG	equ		0
 		move.l	xpos,_ANTIC_xpos
 		jsr		_MEMORY_HwPutByte
 		move.l	_ANTIC_xpos,xpos
-		else
-		movea.l	d0,a0
-		lsr.l	#8,d0
-		movea.l	(0.b,mem_writemap,d0.l*4),a1
-		move.l	a0,d0
-		tst.l	a1
-		beq.b	.no_hardware\@
-		move.l	d1,-(sp)						; value
-		move.l	d0,-(sp)						; addr
-		move.l	xpos,_ANTIC_xpos
-		jsr		(a1)
-		move.l	_ANTIC_xpos,xpos
-		endif
 		addq.l	#8,sp
 		bra.b	.skip\@
 .no_hardware\@:
@@ -707,12 +662,7 @@ _CPU_JIT_Execute:
 		PutStatus d0
 		and.b	#%00111100,_CPU_regP			; NV*BDIZC -> 00*BDI00
 
-		ifeq	PAGED_ATTRIB
 		lea		_MEMORY_attrib,mem_attrib
-		else
-		lea		_MEMORY_readmap,mem_readmap
-		lea		_MEMORY_writemap,mem_writemap
-		endif
 		lea		_MEMORY_mem,memory
 		move.l	_ANTIC_xpos,xpos
 
@@ -1128,14 +1078,8 @@ _CPU_JIT_Instance:
 
 ; void CPU_NMI(void);
 _CPU_NMI:
-		ifeq	PAGED_ATTRIB
 		movem.l	mem_attrib/memory,-(sp)
 		lea		_MEMORY_attrib,mem_attrib
-		else
-		movem.l	mem_readmap/mem_writemap/memory,-(sp)
-		lea		_MEMORY_readmap,mem_readmap
-		lea		_MEMORY_writemap,mem_writemap
-		endif
 		lea		_MEMORY_mem,memory
 		clr.l	d0
 
@@ -1157,11 +1101,7 @@ _CPU_NMI:
 
 		addq.l	#7,_ANTIC_xpos
 
-		ifeq	PAGED_ATTRIB
 		movem.l	(sp)+,mem_attrib/memory
-		else
-		movem.l	(sp)+,mem_readmap/mem_writemap/memory
-		endif
 		rts
 
 ; ----------------------------------------------

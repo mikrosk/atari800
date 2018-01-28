@@ -135,6 +135,10 @@ UBYTE CPU_IRQ;
 #error cpu_m68k_jit.asm does not support cycle inexact emulation
 #endif
 
+#ifdef PAGED_ATTRIB
+#error cpu_m68k_jit.asm does not support page attributes
+#endif
+
 #else
 
 /* Windows headers define it */
