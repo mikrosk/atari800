@@ -686,7 +686,7 @@ C_FLAG	equ		0
 		section	text
 ; ---------------------------------------------
 
-; void CPU_JIT_Execute(UBYTE* pCode);
+; void CPU_JIT_Execute(const UBYTE* pCode);
 _CPU_JIT_Execute:
 		movea.l	(4,sp),a0						; code
 		movem.l	d2-d7/a2-a6,-(sp)
@@ -732,7 +732,8 @@ _CPU_JIT_Execute:
 		movem.l	(sp)+,d2-d7/a2-a6
 		rts
 
-; void CPU_JIT_Instance(UBYTE* dst_buf, const struct CPU_JIT_insn_template_t *src_template, UWORD data, int bytes, int cycles);
+; void CPU_JIT_Instance(UBYTE* dst_buf, const struct CPU_JIT_insn_template_t *src_template,
+;                       const UWORD data, const int bytes, const int cycles);
 		rsreset
 insn_template_is_stop: 		rs.w	1
 insn_template_data_offset:	rs.w	1

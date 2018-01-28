@@ -41,8 +41,9 @@
 #include "memory.h"
 #include "util.h"
 
-extern void CPU_JIT_Instance(UBYTE *dst_buf, const struct CPU_JIT_insn_template_t *src_template, UWORD data, int bytes, int cycles);
-extern void CPU_JIT_Execute(UBYTE *pCode);
+extern void CPU_JIT_Instance(UBYTE *dst_buf, const struct CPU_JIT_insn_template_t *src_template,
+                             const UWORD data, const int bytes, const int cycles);
+extern void CPU_JIT_Execute(const UBYTE *pCode);
 
 static const struct CPU_JIT_insn_template_t* const JIT_compiler_insn_table[256] = {
 	&JIT_insn_opcode_00, &JIT_insn_opcode_01, &JIT_insn_opcode_02, &JIT_insn_opcode_03,
@@ -204,13 +205,13 @@ struct JIT_native_code_info_t {
 	} data_type;
 };
 
-static struct JIT_block_t *allocate_block()
+static struct JIT_block_t *allocate_block(void)
 {
 	struct JIT_block_t *block = (struct JIT_block_t *)Util_malloc(sizeof(*block));
 	memset(block, 0, sizeof(*block));
 	return block;
 }
-static struct JIT_native_code_info_t *allocate_code_info()
+static struct JIT_native_code_info_t *allocate_code_info(void)
 {
 	struct JIT_native_code_info_t *info = (struct JIT_native_code_info_t *)Util_malloc(sizeof(*info));
 	memset(info, 0, sizeof(*info));
@@ -345,7 +346,7 @@ static struct CPU_JIT_native_code_t *compile_code(const UWORD pc) {
 	return &MEMORY_JIT_mem[pc];
 }
 
-static void execute_code(struct CPU_JIT_native_code_t *native_code)
+static void execute_code(const struct CPU_JIT_native_code_t *native_code)
 {
 	assert(native_code->insn_addr != NULL);
 
@@ -431,7 +432,7 @@ void CPU_GO(int limit)
 	}
 }
 
-int CPU_JIT_Invalidate(UWORD addr)
+int CPU_JIT_Invalidate(const UWORD addr)
 {
 	struct CPU_JIT_native_code_t *native_code = &MEMORY_JIT_mem[addr];
 	struct JIT_native_code_info_t *info;
@@ -480,7 +481,7 @@ int CPU_JIT_Invalidate(UWORD addr)
 	return TRUE;
 }
 
-void CPU_JIT_InvalidateMem(UWORD from, UWORD to)
+void CPU_JIT_InvalidateMem(const UWORD from, const UWORD to)
 {
 	UWORD addr;
 
@@ -491,7 +492,7 @@ void CPU_JIT_InvalidateMem(UWORD from, UWORD to)
 	}
 }
 
-void CPU_JIT_InvalidateAllocatedCode(struct CPU_JIT_native_code_t *native_code, int count)
+void CPU_JIT_InvalidateAllocatedCode(struct CPU_JIT_native_code_t *native_code, const int count)
 {
 	int i;
 

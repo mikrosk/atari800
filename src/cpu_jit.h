@@ -293,10 +293,10 @@ extern struct CPU_JIT_insn_template_t JIT_insn_opcode_f2;	/* ESC #ab (CIM) - on 
 extern struct CPU_JIT_insn_template_t JIT_insn_opcode_b2;
 
 /* Invalidates the host instructions specified by the address. Returns FALSE if not found. */
-extern int CPU_JIT_Invalidate(UWORD addr);
+extern int CPU_JIT_Invalidate(const UWORD addr);
 /* Invalidates block(s) specified by the range. */
-extern void CPU_JIT_InvalidateMem(UWORD from, UWORD to);
+extern void CPU_JIT_InvalidateMem(const UWORD from, const UWORD to);
 /* Invalidates the blocks specified. */
-extern void CPU_JIT_InvalidateAllocatedCode(struct CPU_JIT_native_code_t *native_code, int count);
+extern void CPU_JIT_InvalidateAllocatedCode(struct CPU_JIT_native_code_t *native_code, const int count);
 
 #endif /* CPU_JIT_H_ */
