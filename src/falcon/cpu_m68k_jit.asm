@@ -19,6 +19,8 @@
 ; along with Atari800; if not, write to the Free Software
 ; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
+		opt		a-								; don't automatically optimize absolute to PC-relative references
+
 		xref	_ANTIC_xpos
 		xref	_ANTIC_xpos_limit
 		xref	_CPU_IRQ
@@ -366,13 +368,8 @@ C_FLAG	equ		0
 		macro	MEMORY_GetByte					; d0.l: addr
 		cmpi.b	#MEMORY_HARDWARE,(0.b,mem_attrib,d0.l*1)
 		bne.b	.no_hardware\@
-		clr.l	-(sp)							; FALSE (no side effects)
-		move.l	d0,-(sp)						; addr
-		move.l	xpos,_ANTIC_xpos
-		jsr		_MEMORY_HwGetByte
-		move.l	_ANTIC_xpos,xpos
-		addq.l	#8,sp
-		bra.b	.skip\@
+		pea		(.skip\@,pc)
+		jmp		MEMORY_HwGetByte
 .no_hardware\@:
 		MEMORY_dGetByte
 .skip\@:
@@ -389,31 +386,26 @@ C_FLAG	equ		0
 		beq.b	.no_hardware\@
 		cmpi.b	#MEMORY_HARDWARE,(0.b,mem_attrib,d0.l*1)
 		bne.b	.skip\@
-		move.l	d1,-(sp)						; value
-		move.l	d0,-(sp)						; addr
-		move.l	xpos,_ANTIC_xpos
-		jsr		_MEMORY_HwPutByte
-		move.l	_ANTIC_xpos,xpos
-		addq.l	#8,sp
-		bra.b	.skip\@
+		pea		(.skip\@,pc)
+		jmp		MEMORY_HwPutByte
 .no_hardware\@:
 		MEMORY_dPutByte
 .skip\@:
 		endm
 
-		; input:    d0.l
-		; output:   d0.b
-		; clobbers: d0.l-d1.l/a0-a1
-		macro	RMW_GetByte
+		macro	RMW_GetByte						; d0.l: addr
+		cmpi.b	#MEMORY_HARDWARE,(0.b,mem_attrib,d0.l*1)
+		bne.b	.no_hardware\@
 		move.l	d0,-(sp)
-		MEMORY_GetByte
+		pea		(.check_rmw\@,pc)
+		jmp		MEMORY_HwGetByte
+.check_rmw\@:
 		; d0.b: value
 		movea.l	(sp)+,a0
 		move.l	a0,d1
 		and.w	#$ef00,d1
 		cmp.w	#$c000,d1
-		bne.b	.skip_rmw\@
-		move.b	d0,-(sp)
+		bne.b	.skip\@
 		move.l	d0,-(sp)						; value
 		move.l	a0,-(sp)						; addr
 		subq.l	#1,xpos
@@ -421,9 +413,11 @@ C_FLAG	equ		0
 		jsr		_MEMORY_HwPutByte
 		move.l	_ANTIC_xpos,xpos
 		addq.l	#1,xpos
-		addq.l	#8,sp
-		move.b	(sp)+,d0
-.skip_rmw\@:
+		addq.l	#4,sp
+		move.l	(sp)+,d0
+.no_hardware\@:
+		MEMORY_dGetByte
+.skip\@:
 		endm
 
 ; ----------------------------------------------
@@ -1102,6 +1096,24 @@ _CPU_NMI:
 		addq.l	#7,_ANTIC_xpos
 
 		movem.l	(sp)+,mem_attrib/memory
+		rts
+
+MEMORY_HwGetByte:
+		clr.l	-(sp)							; FALSE (no side effects)
+		move.l	d0,-(sp)						; addr
+		move.l	xpos,_ANTIC_xpos
+		jsr		_MEMORY_HwGetByte
+		move.l	_ANTIC_xpos,xpos
+		addq.l	#8,sp
+		rts
+
+MEMORY_HwPutByte:
+		move.l	d1,-(sp)						; value
+		move.l	d0,-(sp)						; addr
+		move.l	xpos,_ANTIC_xpos
+		jsr		_MEMORY_HwPutByte
+		move.l	_ANTIC_xpos,xpos
+		addq.l	#8,sp
 		rts
 
 ; ----------------------------------------------
