@@ -942,6 +942,7 @@ $D800 - $FFFF (14 KB RAM or OS ROM)
 - zmena move.b d0,d1 na makra, ktore beru d1
 - v MEMORY_StateRead() musim tiez pomazat vsetko, co suvisi s JIT pamatou
 - v MEMORY_InitialiseMachine() musim pomazat vsetko tiez
+- zistit, preco sa obcas WSYNC counter lisi...
 
 JIT ideas:
 - pozriet format instrukcii a priamo and/or.w #operand, napr. pri imm robime move.b #imm,d0; and.b d0,d2...
@@ -951,7 +952,6 @@ JIT ideas:
 - rozsirenie predosleho bodu: generovat bloky LEN podla 'limit' -- proste skoncime, spytame sa na limit uz v C kode, pokracovat? (lebo len branch) ano/nie; tym padom ale blok potrebuje mat aj limit ID
 - SED/CLD by sposobilo return a zrejme z nejakej tabulky vycitalo, ktore bloky ma pregenerovat, aby bin/dec adc/sub malo len jednu rutinu (mozno blbost, chcelo by to vidiet v praxi na par desiatkach programov; urcite ako ifdef)
 - switch, ci podporovat smc kod
-- spravit MEMORY_JIT_mem verejnu pre asm -- kde by som porovnal, ci sa ma JIT volat pri skoku alebo pokracovat -- aj ked pokracovat kde sme museli zistovat cez vsetky tie struktury az kym sa dopracujeme k UBYTE* addr -- stale stoji za to kedze alternativa je save/restore vsetkych registrov, rts atd..
 - interkacia medzi sucasnou a nasledujucou instrukciou: ak JIT vie, ze and meni N/Z a nasledne add meni N/Z (ktore nema ako vstup N/Z), tak mozeme vygenerovat len jedno ukladanie flagov! cize kazda instrukcia by asi musela mat tri verzie: bez nastavovania Z/C, bez nastavovania C a bez nastavovania V (tu by to mohlo byt specialne zaujimave -- milion ADC/SBC a ak nakoniec V nikoho nezaujima, tak ho nastavime az niekde nakonci pri rts...) ... mno, viac ako tri verzie, 8 verzii, ale nie je to take zle, lebo:
   V - nastavuje CLV, ADC, SBC; vstup pre BVS, BVC
   C - nastavuje ASL, LSR, ROR, ROL, ADC, SBC; vstup pre ROL, ROR, ADC, SBC, BCC, BCS

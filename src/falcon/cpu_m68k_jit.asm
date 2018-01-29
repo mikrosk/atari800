@@ -300,7 +300,7 @@ I_FLAG	equ		2
 Z_FLAG	equ		1
 C_FLAG	equ		0
 
-		macro	GetStatus						; src.b: 00*B0I00
+		macro	GetStatus						; src.b: 00*BDI00
 .n\@:	tst.w	N
 		bpl.b	.v\@
 		;bset	#N_FLAG,\1
@@ -377,8 +377,6 @@ C_FLAG	equ		0
 .skip\@:
 		endm
 
-; TODO: introduce MEMORY_CODE / -1 as an indicator that this page
-; contains (or doesn't) code
 		macro	MEMORY_PutByte_ZP				; d0.l: addr, d1.b: value
 		tst.l	(0.b,memory_jit,d0.l*8)			; UBYTE *insn_addr
 		beq.b	.no_code\@
@@ -510,20 +508,22 @@ C_FLAG	equ		0
 		NO_OFFSET_WITH_BYTES_AND_CYCLES
 .m68k_start:
 		DUMP
+		clr.l	d0
 		endm
 
 		macro	IMPLIED
 		NO_OFFSET_WITH_BYTES_AND_CYCLES
 .m68k_start:
 		DUMP
+		clr.l	d0
 		endm
 
 		macro	IMMEDIATE
-		OFFSET_WITH_BYTES_AND_CYCLES 2
+		OFFSET_WITH_BYTES_AND_CYCLES 4
 .m68k_start:
 		DUMP
 .m68k_data:
-		move.b	#$00ab,d0
+		move.l	#$000000ab,d0
 		endm
 
 		macro	ABSOLUTE
@@ -657,13 +657,20 @@ C_FLAG	equ		0
 		beq.b	.same_page\@
 		addq.l	#1,xpos
 .same_page\@:
-		addq.l	#1,xpos
 		move.l	d0,reg_PC
-		rts
+		addq.l	#1,xpos
+		cmp.l	_ANTIC_xpos_limit,xpos
+		bge.b	.return\@
+		move.l	(0.b,memory_jit,reg_PC.l*8),d0		; UBYTE *insn_addr
+		beq.b	.return\@
+		movea.l	d0,a0
+		jmp		(a0)
+		; never reached...
 .not_taken\@:
 		M68K_BYTES_TEMPLATE
 		cmp.l	_ANTIC_xpos_limit,xpos
 		blt.b	.next_insn\@
+.return\@:
 		rts
 .next_insn\@:
 		DONE
@@ -1060,6 +1067,21 @@ _CPU_JIT_Instance:
 		PHW
 		endm
 
+		; input:    -
+		; output:   -
+		; clobbers: d0.l, a0
+		macro	RETURN_OR_JUMP
+		cmp.l	_ANTIC_xpos_limit,xpos
+		bge.b	.return\@
+		move.l	(0.b,memory_jit,reg_PC.l*8),d0	; UBYTE *insn_addr
+		beq.b	.return\@
+		movea.l	d0,a0
+		jmp		(a0)
+		; not reached...
+.return\@:
+		rts
+		endm
+
 		; input:    (clean d0.l)
 		; output:   -
 		; clobbers: d0.w, d1.b, a0
@@ -1077,7 +1099,7 @@ _CPU_JIT_Instance:
 		MEMORY_dGetWord
 		move.l	d0,reg_PC
 		addq.l	#7,xpos
-		rts
+		RETURN_OR_JUMP
 .skip\@:
 		endm
 
@@ -1125,7 +1147,7 @@ _JIT_insn_opcode_00: ;BRK
 		move.l	d0,reg_PC
 .m68k_cycles:
 		addq.l	#1,xpos							; 2 - 8
-		rts
+		RETURN_OR_JUMP
 		DONE
 
 _JIT_insn_opcode_01: ;ORA (ab,x)
@@ -1190,7 +1212,6 @@ _JIT_insn_opcode_07: ;ASO ab [unofficial - ASL then ORA with Acc]
 _JIT_insn_opcode_08: ;PHP
 		NO_STOP
 		IMPLIED
-		clr.l	d0
 		PHPB1
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
@@ -1351,7 +1372,7 @@ _JIT_insn_opcode_20: ;JSR abcd
 		move.l	#$0000abcd,reg_PC
 .m68k_cycles:
 		addq.l	#1,xpos							; 2 - 8
-		rts
+		RETURN_OR_JUMP
 		DONE
 
 _JIT_insn_opcode_21: ;AND (ab,x)
@@ -1399,7 +1420,6 @@ _JIT_insn_opcode_27: ;RLA ab [unofficial - ROL Mem, then AND with A]
 _JIT_insn_opcode_28: ;PLP
 		NO_STOP
 		IMPLIED
-		clr.l	d0
 		PLP
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
@@ -1548,7 +1568,7 @@ _JIT_insn_opcode_40: ;RTI
 .m68k_cycles:
 		addq.l	#1,xpos							; 2 - 8
 		CHECKIRQ
-		rts
+		RETURN_OR_JUMP
 		DONE
 
 _JIT_insn_opcode_41: ;EOR (ab,x)
@@ -1621,7 +1641,7 @@ _JIT_insn_opcode_4c: ;JMP abcd
 		move.l	#$0000abcd,reg_PC
 .m68k_cycles:
 		addq.l	#1,xpos							; 2 - 8
-		rts
+		RETURN_OR_JUMP
 		DONE
 
 _JIT_insn_opcode_4d: ;EOR abcd
@@ -1695,7 +1715,6 @@ _JIT_insn_opcode_58: ;CLI
 		ClrI
 		M68K_BYTES_TEMPLATE
 		M68K_CYCLES_TEMPLATE
-		clr.l	d0
 		CHECKIRQ
 		DONE
 
@@ -1751,7 +1770,7 @@ _JIT_insn_opcode_60: ;RTS
 		;	CPU_rts_handler();
 		;	CPU_rts_handler = NULL;
 		;}
-		rts
+		RETURN_OR_JUMP
 		DONE
 
 _JIT_insn_opcode_61: ;ADC (ab,x)
@@ -1839,7 +1858,7 @@ _JIT_insn_opcode_6c: ;JMP (abcd)
 		move.l	d0,reg_PC
 .m68k_cycles:
 		addq.l	#1,xpos							; 2 - 8
-		rts
+		RETURN_OR_JUMP
 		DONE
 
 _JIT_insn_opcode_6d: ;ADC abcd
