@@ -371,6 +371,17 @@ void CPU_PutStatus(void)
 	/* not needed */
 }
 
+#define PH(x)  MEMORY_dPutByte(0x0100 + S--, x)
+#define PHW(x) PH((x) >> 8); PH((x) & 0xff)
+#define INTERRUPT(address)  \
+    UBYTE S = CPU_regS;     \
+    PHW(CPU_regPC);         \
+    PH(CPU_regP & 0xef);	\
+    CPU_SetI;               \
+    CPU_regPC = MEMORY_dGetWordAligned(address); \
+    CPU_regS = S;           \
+    ANTIC_xpos += 7;
+
 void DUMP(void)
 {
     Log_print("insn: %02x PC: %04x A: %02x X: %02x Y: %02x",
@@ -400,18 +411,9 @@ void CPU_GO(int limit)
 	//Log_print("%s: continue", __FUNCTION__);
 
 	/* CPUCHECKIRQ */
-#define PH(x)  MEMORY_dPutByte(0x0100 + S--, x)
-#define PHW(x) PH((x) >> 8); PH((x) & 0xff)
 	if (CPU_IRQ && !(CPU_regP & CPU_I_FLAG) && ANTIC_xpos < ANTIC_xpos_limit) {
 		//Log_print("%s: IRQ", __FUNCTION__);
-		UBYTE S = CPU_regS;
-
-		PHW(CPU_regPC);
-		PH(CPU_regP & 0xef);	/* push flags with B flag clear */
-		CPU_SetI;
-		CPU_regPC = MEMORY_dGetWordAligned(0xfffe);
-		CPU_regS = S;
-		ANTIC_xpos += 7;
+		INTERRUPT(0xfffe);
 	}
 
 	while (ANTIC_xpos < ANTIC_xpos_limit) {
@@ -430,6 +432,11 @@ void CPU_GO(int limit)
 		execute_code(native_code);
 		//Log_print("%s: code executed, final PC: %04x, m68k PC: %p", __FUNCTION__, CPU_regPC, native_code->insn_addr);
 	}
+}
+
+void CPU_NMI(void)
+{
+	INTERRUPT(0xfffa);
 }
 
 int CPU_JIT_Invalidate(const UWORD addr)

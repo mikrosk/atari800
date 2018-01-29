@@ -24,7 +24,6 @@
 		xref	_ANTIC_xpos
 		xref	_ANTIC_xpos_limit
 		xref	_CPU_IRQ
-		xdef	_CPU_NMI
 		xref	_CPU_regA
 		xref	_CPU_regX
 		xref	_CPU_regY
@@ -1083,33 +1082,6 @@ _CPU_JIT_Instance:
 		endm
 
 ; ----------------------------------------------
-
-; void CPU_NMI(void);
-_CPU_NMI:
-		move.l	memory,-(sp)
-		lea		_MEMORY_mem,memory
-		clr.l	d0
-
-		move.w	_CPU_regPC,d0
-		PHW										; reg_S+1 equals to _CPU_regS
-
-		; PHPB0
-		move.b	_CPU_regP,d0					; _CPU_regP is complete here
-		and.b	#%11101111,d0
-		PH
-
-		SetI
-
-		move.l	#$0000fffa,d0
-		MEMORY_dGetWord
-		move.w	d0,_CPU_regPC
-
-		move.b	reg_S+1,_CPU_regS
-
-		addq.l	#7,_ANTIC_xpos
-
-		move.l	(sp)+,memory
-		rts
 
 MEMORY_HwGetByte:
 		clr.l	-(sp)							; FALSE (no side effects)
