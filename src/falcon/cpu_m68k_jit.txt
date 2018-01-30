@@ -74,45 +74,6 @@ TXA	....	transfer X to accumulator
 TXS	....	transfer X to stack pointer
 TYA	....	transfer Y to accumulator
 
-
-Registers:
-
-PC	....	program counter	(16 bit)
-AC	....	accumulator	(8 bit)
-X	....	X register	(8 bit)
-Y	....	Y register	(8 bit)
-SR	....	status register [NV-BDIZC]	(8 bit)
-SP	....	stack pointer	(8 bit)
-
-SR Flags (bit 7 to bit 0):
-
-N	....	Negative
-V	....	Overflow
--	....	ignored
-B	....	Break
-D	....	Decimal (use BCD for arithmetics)
-I	....	Interrupt (IRQ disable)
-Z	....	Zero
-C	....	Carry
-
-
-Processor Stack:
-LIFO, top down, 8 bit range, 0x0100 - 0x01FF
-
-
-Bytes, Words, Addressing:
-8 bit bytes, 16 bit words in lobyte-hibyte representation (Little-Endian).
-16 bit address range, operands follow instruction codes.
-
-
-Vendor:
-MOS Technology, 1975
-
-MOS Techology 6502 MPU
-
-
-APPENDIX A: 6502 Instructions in Detail
-
 instrukcii: 55
 acc pouziva: 19
 x pouziva: 9
@@ -120,59 +81,6 @@ y pouziva: 7
 pc (kazda) + 13
 sp: 10
 sr..
-
-d0.b: acc
-d1.w: pc
-a0.w: sp (realna adresa, zarovnana na 64k) ... nemoze byt a7, pretoze vyzaduje vzdy even adresy :-(
-a1.l: memory
----------
-d2.b: x
-d3.b: y
-sr: register? zvlast bunky?
-
-#define PL                  MEMORY_dGetByte(0x0100 + ++S)
-#define PH(x)               MEMORY_dPutByte(0x0100 + S--, x)
-#define PHW(x)              PH((x) >> 8); PH((x) & 0xff)
-
-/* 6502 code fetching */
-#define GET_PC()            PC
-#define SET_PC(newpc)       (PC = (newpc))
-#define PHPC                PHW(PC)
-#define GET_CODE_BYTE()     MEMORY_dGetByte(PC++)
-#define PEEK_CODE_BYTE()    MEMORY_dGetByte(PC)
-#define PEEK_CODE_WORD()    MEMORY_dGetWord(PC)
-
-#define OP_BYTE     PEEK_CODE_BYTE()
-#define OP_WORD     PEEK_CODE_WORD()
-#define IMMEDIATE   GET_CODE_BYTE()
-#define ABSOLUTE    addr = PEEK_CODE_WORD(); PC += 2
-#define ZPAGE       addr = GET_CODE_BYTE()
-#define ABSOLUTE_X  addr = PEEK_CODE_WORD() + X; PC += 2
-#define ABSOLUTE_Y  addr = PEEK_CODE_WORD() + Y; PC += 2
-#define INDIRECT_X  addr = (UBYTE) (GET_CODE_BYTE() + X); addr = zGetWord(addr)
-#define INDIRECT_Y  addr = GET_CODE_BYTE(); addr = zGetWord(addr) + Y
-#define ZPAGE_X     addr = (UBYTE) (GET_CODE_BYTE() + X)
-#define ZPAGE_Y     addr = (UBYTE) (GET_CODE_BYTE() + Y)
-
-UWORD CPU_regPC;
-UBYTE CPU_regA;
-UBYTE CPU_regX;
-UBYTE CPU_regY;
-UBYTE CPU_regP;						/* Processor Status Byte (Partial) */
-UBYTE CPU_regS;
-UBYTE CPU_IRQ;
-
-static UBYTE N;					/* bit7 set => N flag set */
-static UBYTE V;                 /* non-zero => V flag set */
-static UBYTE Z;					/* zero     => Z flag set */
-static UBYTE C;					/* must be 0 or 1 */
-/* B, D, I are always in CPU_regP */
-
-CPU_regP = (N & 0x80) + (V ? 0x40 : 0) + (CPU_regP & 0x3c) + ((Z == 0) ? 0x02 : 0) + C;
-
-; Bit    : 76543210
-; 68000  : ***XNZVC
-; _RegP  : NV*BDIZC
 
 #define AND(t_data) Z = N = A &= t_data
 #define CMP(t_data) data = t_data; Z = N = A - data; C = (A >= data)
@@ -939,10 +847,23 @@ $C000 - $D000 (4 KB RAM or OS ROM)
 $D000 - $D800 (hardware)
 $D800 - $FFFF (14 KB RAM or OS ROM)
 
+acc:	- (priamo instrukciu dodat)
+imp:	- (priamo instrukciu dodat)
+imm:	podla operacie (and, or, add, ...) dodat byte operand (velkost word aj tak...)
+abs:	($abcd-$8000.w,memory)
+rel:	($abcd-$8000.w,memory) ... je tam ale taken/not taken (xpos: not taken, taken, taken over page)
+zp:		($00ab-$8000.w,memory)
+abs,x:	($abcd-$8000.w,memory,reg_X.w) ... tu potrebujem aj tak checknut overflow (xpos: +1 if over page)
+abs,y:	($abcd-$8000.w,memory,reg_Y.w) ... detto
+x,ind:	($00ab-$8000.w,memory,reg_X.w) + vytiahnut word z tej adresy a ten pouzit (asi ee, ab+reg_X je byte operacia)
+ind,y:	($00ab-$8000.w,memory) + vytiahnut word z tej adresy + pripocitat Y ... plus check overflow (xpos: +1 if over page)
+ind		($abcd-$8000.w,memory) + vytiahnut word z tej adresy (plus check na ten bug)
+zp,x:	($00ab-$8000.w,memory,reg_X.w) teoreticky OK, ale nesmie to pretiec ab+reg_x je byte operacia
+zp,y:	($00ab-$8000.w,memory,reg_Y.w) teoreticky OK, ale nesmie to pretiec ab+reg_y je byte operacia
+
 - zmena move.b d0,d1 na makra, ktore beru d1
 - v MEMORY_StateRead() musim tiez pomazat vsetko, co suvisi s JIT pamatou
 - v MEMORY_InitialiseMachine() musim pomazat vsetko tiez
-- zistit, preco sa obcas WSYNC counter lisi...
 
 JIT ideas:
 - pozriet format instrukcii a priamo and/or.w #operand, napr. pri imm robime move.b #imm,d0; and.b d0,d2...

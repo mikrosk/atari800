@@ -270,7 +270,20 @@ MEMORY_HARDWARE	equ	2
 unknown	equ		-1
 no_stop	equ		0
 is_stop	equ		1
-is_relative_stop equ 2
+
+accumulator	equ	0
+absolute	equ	1
+absolute_x	equ	2
+absolute_y	equ	3
+immediate	equ	4
+implied		equ	5
+indirect	equ	6
+x_indirect	equ	7
+indirect_y	equ	8
+relative	equ	9
+zero_page	equ	10
+zero_page_x	equ	11
+zero_page_y	equ	12
 
 reg_A	equr	d2								; .b
 reg_X	equr	d3								; .b
@@ -432,24 +445,6 @@ C_FLAG	equ		0
 
 ; ----------------------------------------------
 
-		macro	NO_STOP
-		dc.w	no_stop
-		endm
-
-		macro	IS_STOP
-		dc.w	is_stop
-		endm
-
-		macro	IS_RELATIVE_STOP
-		dc.w	is_relative_stop
-		endm
-
-		macro	NOT_IMPLEMENTED
-		dc.w	unknown
-		endm
-
-; ----------------------------------------------
-
 		macro	NO_OFFSET_WITH_BYTES_AND_CYCLES
 		dc.w	-1
 		dc.w	.m68k_bytes-.m68k_start
@@ -478,20 +473,6 @@ C_FLAG	equ		0
 		dc.w	.m68k_end-.m68k_start
 		endm
 
-		macro	BRANCH_WITH_BYTES_AND_CYCLES
-		dc.w	.m68k_data-.m68k_start+4
-		dc.w	.m68k_bytes-.m68k_start
-		dc.w	.m68k_cycles-.m68k_start
-		dc.w	.m68k_end-.m68k_start
-		endm
-
-		macro	JUMP_WITH_CYCLES
-		dc.w	.m68k_data-.m68k_start+4
-		dc.w	-1
-		dc.w	.m68k_cycles-.m68k_start
-		dc.w	.m68k_end-.m68k_start
-		endm
-
 ; ----------------------------------------------
 
 		xref	_DUMP
@@ -505,65 +486,116 @@ C_FLAG	equ		0
 		endm
 
 		macro	ACCUMULATOR
+		dc.b	no_stop
+		dc.b	accumulator
 		NO_OFFSET_WITH_BYTES_AND_CYCLES
 .m68k_start:
 		DUMP
+.m68k_cycles:
+		addq.l	#1,xpos							; 2 - 8
 		clr.l	d0
-		endm
-
-		macro	IMPLIED
-		NO_OFFSET_WITH_BYTES_AND_CYCLES
-.m68k_start:
-		DUMP
-		clr.l	d0
-		endm
-
-		macro	IMMEDIATE
-		OFFSET_WITH_BYTES_AND_CYCLES 4
-.m68k_start:
-		DUMP
-.m68k_data:
-		move.l	#$000000ab,d0
 		endm
 
 		macro	ABSOLUTE
+		dc.b	no_stop
+		dc.b	absolute
 		OFFSET_WITH_BYTES_AND_CYCLES 4
 .m68k_start:
 		DUMP
+.m68k_cycles:
+		addq.l	#1,xpos							; 2 - 8
 .m68k_data:
 		move.l	#$0000abcd,d0
 		endm
 
-		macro	ZPAGE
-		OFFSET_WITH_BYTES_AND_CYCLES 4
+		macro	ABSOLUTE_JUMP
+		dc.b	is_stop
+		dc.b	absolute
+		OFFSET_WITH_CYCLES 4
 .m68k_start:
 		DUMP
-.m68k_data:
-		move.l	#$000000ab,d0
+.m68k_cycles:
+		addq.l	#1,xpos							; 2 - 8
 		endm
 
 		macro	ABSOLUTE_X
+		dc.b	no_stop
+		dc.b	absolute_x
 		OFFSET_WITH_BYTES_AND_CYCLES 4
 .m68k_start:
 		DUMP
+.m68k_cycles:
+		addq.l	#1,xpos							; 2 - 8
 .m68k_data:
 		move.l	#$0000abcd,d0
 		add.w	reg_X,d0
 		endm
 
 		macro	ABSOLUTE_Y
+		dc.b	no_stop
+		dc.b	absolute_y
 		OFFSET_WITH_BYTES_AND_CYCLES 4
 .m68k_start:
 		DUMP
+.m68k_cycles:
+		addq.l	#1,xpos							; 2 - 8
 .m68k_data:
 		move.l	#$0000abcd,d0
 		add.w	reg_Y,d0
 		endm
 
-		macro	INDIRECT_X
+		macro	IMMEDIATE
+		dc.b	no_stop
+		dc.b	immediate
 		OFFSET_WITH_BYTES_AND_CYCLES 4
 .m68k_start:
 		DUMP
+.m68k_cycles:
+		addq.l	#1,xpos							; 2 - 8
+.m68k_data:
+		move.l	#$000000ab,d0
+		endm
+
+		macro	IMPLIED
+		dc.b	no_stop
+		dc.b	implied
+		NO_OFFSET_WITH_BYTES_AND_CYCLES
+.m68k_start:
+		DUMP
+.m68k_cycles:
+		addq.l	#1,xpos							; 2 - 8
+		clr.l	d0
+		endm
+
+		macro	IMPLIED_RETURN
+		dc.b	is_stop
+		dc.b	implied
+		NO_OFFSET_WITH_CYCLES
+.m68k_start:
+		DUMP
+.m68k_cycles:
+		addq.l	#1,xpos							; 2 - 8
+		clr.l	d0
+		endm
+
+		macro	INDIRECT
+		dc.b	is_stop
+		dc.b	indirect
+		OFFSET_WITH_CYCLES	4
+.m68k_start:
+		DUMP
+.m68k_cycles:
+		addq.l	#1,xpos							; 2 - 8
+		endm
+
+		macro	INDIRECT_X
+		dc.b	no_stop
+		dc.b	x_indirect
+		OFFSET_WITH_BYTES_AND_CYCLES 4
+.m68k_start:
+		DUMP
+.m68k_cycles:
+		addq.l	#1,xpos							; 2 - 8
 .m68k_data:
 		move.l	#$000000ab,d0
 		add.b	reg_X,d0
@@ -571,36 +603,70 @@ C_FLAG	equ		0
 		endm
 
 		macro	INDIRECT_Y
+		dc.b	no_stop
+		dc.b	indirect_y
 		OFFSET_WITH_BYTES_AND_CYCLES 4
 .m68k_start:
 		DUMP
+.m68k_cycles:
+		addq.l	#1,xpos							; 2 - 8
 .m68k_data:
 		move.l	#$000000ab,d0
 		MEMORY_dGetWord
 		add.w	reg_Y,d0
 		endm
 
-		macro	ZPAGE_X
+		macro	RELATIVE
+		dc.b	is_stop
+		dc.b	relative
 		OFFSET_WITH_BYTES_AND_CYCLES 4
 .m68k_start:
 		DUMP
+.m68k_cycles:
+		addq.l	#1,xpos							; 2 - 8
+		endm
+
+		macro	ZPAGE
+		dc.b	no_stop
+		dc.b	zero_page
+		OFFSET_WITH_BYTES_AND_CYCLES 4
+.m68k_start:
+		DUMP
+.m68k_cycles:
+		addq.l	#1,xpos							; 2 - 8
+.m68k_data:
+		move.l	#$000000ab,d0
+		endm
+
+		macro	ZPAGE_X
+		dc.b	no_stop
+		dc.b	zero_page_x
+		OFFSET_WITH_BYTES_AND_CYCLES 4
+.m68k_start:
+		DUMP
+.m68k_cycles:
+		addq.l	#1,xpos							; 2 - 8
 .m68k_data:
 		move.l	#$000000ab,d0
 		add.b	reg_X,d0
 		endm
 
 		macro	ZPAGE_Y
+		dc.b	no_stop
+		dc.b	zero_page_y
 		OFFSET_WITH_BYTES_AND_CYCLES 4
 .m68k_start:
 		DUMP
+.m68k_cycles:
+		addq.l	#1,xpos							; 2 - 8
 .m68k_data:
 		move.l	#$000000ab,d0
 		add.b	reg_Y,d0
 		endm
 
-		macro	CUSTOM
-.m68k_start:
-		DUMP
+		macro	NOT_IMPLEMENTED
+		dc.b	unknown
+		dc.b	unknown
 		endm
 
 ; ----------------------------------------------
@@ -628,8 +694,6 @@ C_FLAG	equ		0
 		endm
 
 		macro	M68K_CYCLES_TEMPLATE
-.m68k_cycles:
-		addq.l	#1,xpos							; 2 - 8
 		cmp.l	_ANTIC_xpos_limit,xpos
 		blt.b	.next_insn\@
 		rts
@@ -638,42 +702,6 @@ C_FLAG	equ		0
 
 		macro	DONE
 .m68k_end:
-		endm
-
-; TODO: we know what is the value of the PC and the jump destination
-;       so why not calculate it in advance?
-		macro	BRANCH							; flag, <size>, <!cc>
-.m68k_start:
-		DUMP
-.m68k_cycles:
-		addq.l	#1,xpos							; 2 - 8
-		tst.\2	\1
-		b\3.b	.not_taken\@
-.m68k_data:
-		move.l	#$0000abcd,d0
-		move.w	reg_PC,d1
-		eor.w	d0,d1
-		lsr.w	#8,d1
-		beq.b	.same_page\@
-		addq.l	#1,xpos
-.same_page\@:
-		move.l	d0,reg_PC
-		addq.l	#1,xpos
-		cmp.l	_ANTIC_xpos_limit,xpos
-		bge.b	.return\@
-		move.l	(0.b,memory_jit,reg_PC.l*8),d0		; UBYTE *insn_addr
-		beq.b	.return\@
-		movea.l	d0,a0
-		jmp		(a0)
-		; never reached...
-.not_taken\@:
-		M68K_BYTES_TEMPLATE
-		cmp.l	_ANTIC_xpos_limit,xpos
-		blt.b	.next_insn\@
-.return\@:
-		rts
-.next_insn\@:
-		DONE
 		endm
 
 ; ---------------------------------------------
@@ -1082,6 +1110,29 @@ _CPU_JIT_Instance:
 		rts
 		endm
 
+		; TODO: we know what is the value of the PC and the jump destination
+;       so why not calculate it in advance?
+		macro	BRANCH							; flag, <size>, <cc>
+		tst.\2	\1
+		b\3.b	.taken\@
+		M68K_BYTES_TEMPLATE
+		bra.b	.return_or_jump\@
+.taken\@:
+.m68k_data:
+		move.l	#$0000abcd,d0
+		move.w	reg_PC,d1
+		eor.w	d0,d1
+		lsr.w	#8,d1
+		beq.b	.same_page\@
+		addq.l	#1,xpos
+.same_page\@:
+		move.l	d0,reg_PC
+		addq.l	#1,xpos
+.return_or_jump\@:
+		RETURN_OR_JUMP
+		DONE
+		endm
+
 		; input:    (clean d0.l)
 		; output:   -
 		; clobbers: d0.w, d1.b, a0
@@ -1134,35 +1185,27 @@ JIT_Invalidate:
 ; ----------------------------------------------
 
 _JIT_insn_opcode_00: ;BRK
-		IS_STOP
-		NO_OFFSET_WITH_CYCLES
-		CUSTOM
+		IMPLIED_RETURN
 		addq.w	#1,reg_PC						; XXX: if reg_PC is an An, this is handled as .l
-		clr.l	d0
 		PHPC
 		PHPB1
 		SetI
 		move.l	#$0000fffe,d0
 		MEMORY_dGetWord
 		move.l	d0,reg_PC
-.m68k_cycles:
-		addq.l	#1,xpos							; 2 - 8
 		RETURN_OR_JUMP
 		DONE
 
 _JIT_insn_opcode_01: ;ORA (ab,x)
-		NO_STOP
 		INDIRECT_X
 		MEMORY_GetByte
 		ORA6502
 		DONE
 
 _JIT_insn_opcode_03: ;ASO (ab,x) [unofficial - ASL then ORA with Acc]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_64: ;NOP ab [unofficial - skip byte]
-		NO_STOP
 		IMPLIED
 		; nothing to do
 		M68K_BYTES_TEMPLATE
@@ -1170,7 +1213,6 @@ _JIT_insn_opcode_64: ;NOP ab [unofficial - skip byte]
 		DONE
 
 _JIT_insn_opcode_f4: ;NOP ab,x [unofficial - skip byte]
-		NO_STOP
 		IMPLIED
 		; nothing to do
 		M68K_BYTES_TEMPLATE
@@ -1178,7 +1220,6 @@ _JIT_insn_opcode_f4: ;NOP ab,x [unofficial - skip byte]
 		DONE
 
 _JIT_insn_opcode_e2: ;NOP #ab [unofficial - skip byte]
-		NO_STOP
 		IMPLIED
 		; nothing to do
 		M68K_BYTES_TEMPLATE
@@ -1186,14 +1227,12 @@ _JIT_insn_opcode_e2: ;NOP #ab [unofficial - skip byte]
 		DONE
 
 _JIT_insn_opcode_05: ;ORA ab
-		NO_STOP
 		ZPAGE
 		MEMORY_dGetByte
 		ORA6502
 		DONE
 
 _JIT_insn_opcode_06: ;ASL ab
-		NO_STOP
 		ZPAGE
 		move.l	d0,-(sp)
 		MEMORY_dGetByte
@@ -1206,11 +1245,9 @@ _JIT_insn_opcode_06: ;ASL ab
 		DONE
 
 _JIT_insn_opcode_07: ;ASO ab [unofficial - ASL then ORA with Acc]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_08: ;PHP
-		NO_STOP
 		IMPLIED
 		PHPB1
 		M68K_BYTES_TEMPLATE
@@ -1218,13 +1255,11 @@ _JIT_insn_opcode_08: ;PHP
 		DONE
 
 _JIT_insn_opcode_09: ;ORA #ab
-		NO_STOP
 		IMMEDIATE
 		ORA6502
 		DONE
 
 _JIT_insn_opcode_0a: ;ASL
-		NO_STOP
 		ACCUMULATOR
 		ASL_ONLY reg_A
 		M68K_BYTES_TEMPLATE
@@ -1232,11 +1267,9 @@ _JIT_insn_opcode_0a: ;ASL
 		DONE
 
 _JIT_insn_opcode_2b: ;ANC #ab [unofficial - AND then copy N to C (Fox)
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_0c: ;NOP abcd [unofficial - skip word]
-		NO_STOP
 		IMPLIED
 		; nothing to do
 		M68K_BYTES_TEMPLATE
@@ -1244,14 +1277,12 @@ _JIT_insn_opcode_0c: ;NOP abcd [unofficial - skip word]
 		DONE
 
 _JIT_insn_opcode_0d: ;ORA abcd
-		NO_STOP
 		ABSOLUTE
 		MEMORY_GetByte
 		ORA6502
 		DONE
 
 _JIT_insn_opcode_0e: ;ASL abcd
-		NO_STOP
 		ABSOLUTE
 		move.l	d0,-(sp)
 		RMW_GetByte
@@ -1264,16 +1295,13 @@ _JIT_insn_opcode_0e: ;ASL abcd
 		DONE
 
 _JIT_insn_opcode_0f: ;ASO abcd [unofficial - ASL then ORA with Acc]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_10: ;BPL
-		IS_RELATIVE_STOP
-		BRANCH_WITH_BYTES_AND_CYCLES
-		BRANCH N,w,mi
+		RELATIVE
+		BRANCH N,w,pl
 
 _JIT_insn_opcode_11: ;ORA (ab),y
-		NO_STOP
 		INDIRECT_Y
 		NCYCLES_Y
 		MEMORY_GetByte
@@ -1281,18 +1309,15 @@ _JIT_insn_opcode_11: ;ORA (ab),y
 		DONE
 
 _JIT_insn_opcode_13: ;ASO (ab),y [unofficial - ASL then ORA with Acc]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_15: ;ORA ab,x
-		NO_STOP
 		ZPAGE_X
 		MEMORY_dGetByte
 		ORA6502
 		DONE
 
 _JIT_insn_opcode_16: ;ASL ab,x
-		NO_STOP
 		ZPAGE_X
 		move.l	d0,-(sp)
 		MEMORY_dGetByte
@@ -1305,11 +1330,9 @@ _JIT_insn_opcode_16: ;ASL ab,x
 		DONE
 
 _JIT_insn_opcode_17: ;ASO ab,x [unofficial - ASL then ORA with Acc]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_18: ;CLC
-		NO_STOP
 		IMPLIED
 		ClrC
 		M68K_BYTES_TEMPLATE
@@ -1317,7 +1340,6 @@ _JIT_insn_opcode_18: ;CLC
 		DONE
 
 _JIT_insn_opcode_19: ;ORA abcd,y
-		NO_STOP
 		ABSOLUTE_Y
 		NCYCLES_Y
 		MEMORY_GetByte
@@ -1325,11 +1347,9 @@ _JIT_insn_opcode_19: ;ORA abcd,y
 		DONE
 
 _JIT_insn_opcode_1b: ;ASO abcd,y [unofficial - ASL then ORA with Acc]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_fc: ;NOP abcd,x [unofficial - skip word]
-		NO_STOP
 		IMPLIED
 		; nothing to do
 		M68K_BYTES_TEMPLATE
@@ -1337,7 +1357,6 @@ _JIT_insn_opcode_fc: ;NOP abcd,x [unofficial - skip word]
 		DONE
 
 _JIT_insn_opcode_1d: ;ORA abcd,x
-		NO_STOP
 		ABSOLUTE_X
 		NCYCLES_X
 		MEMORY_GetByte
@@ -1345,7 +1364,6 @@ _JIT_insn_opcode_1d: ;ORA abcd,x
 		DONE
 
 _JIT_insn_opcode_1e: ;ASL abcd,x
-		NO_STOP
 		ABSOLUTE_X
 		move.l	d0,-(sp)
 		RMW_GetByte
@@ -1358,50 +1376,40 @@ _JIT_insn_opcode_1e: ;ASL abcd,x
 		DONE
 
 _JIT_insn_opcode_1f: ;ASO abcd,x [unofficial - ASL then ORA with Acc]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_20: ;JSR abcd
-		IS_STOP
-		JUMP_WITH_CYCLES
-		CUSTOM
+		ABSOLUTE_JUMP
 		move.l	reg_PC,d0
 		addq.w	#1+1,d0									; store PC one byte before next insn
 		PHW
 .m68k_data:
 		move.l	#$0000abcd,reg_PC
-.m68k_cycles:
-		addq.l	#1,xpos							; 2 - 8
 		RETURN_OR_JUMP
 		DONE
 
 _JIT_insn_opcode_21: ;AND (ab,x)
-		NO_STOP
 		INDIRECT_X
 		MEMORY_GetByte
 		AND6502
 		DONE
 
 _JIT_insn_opcode_23: ;RLA (ab,x) [unofficial - ROL Mem, then AND with A]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_24: ;BIT ab
-		NO_STOP
 		ZPAGE
 		MEMORY_dGetByte
 		BIT6502
 		DONE
 
 _JIT_insn_opcode_25: ;AND ab
-		NO_STOP
 		ZPAGE
 		MEMORY_dGetByte
 		AND6502
 		DONE
 
 _JIT_insn_opcode_26: ;ROL ab
-		NO_STOP
 		ZPAGE
 		move.l	d0,-(sp)
 		MEMORY_dGetByte
@@ -1414,11 +1422,9 @@ _JIT_insn_opcode_26: ;ROL ab
 		DONE
 
 _JIT_insn_opcode_27: ;RLA ab [unofficial - ROL Mem, then AND with A]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_28: ;PLP
-		NO_STOP
 		IMPLIED
 		PLP
 		M68K_BYTES_TEMPLATE
@@ -1427,13 +1433,11 @@ _JIT_insn_opcode_28: ;PLP
 		DONE
 
 _JIT_insn_opcode_29: ;AND #ab
-		NO_STOP
 		IMMEDIATE
 		AND6502
 		DONE
 
 _JIT_insn_opcode_2a: ;ROL
-		NO_STOP
 		ACCUMULATOR
 		ROL_ONLY reg_A
 		M68K_BYTES_TEMPLATE
@@ -1441,21 +1445,18 @@ _JIT_insn_opcode_2a: ;ROL
 		DONE
 
 _JIT_insn_opcode_2c: ;BIT abcd
-		NO_STOP
 		ABSOLUTE
 		MEMORY_GetByte
 		BIT6502
 		DONE
 
 _JIT_insn_opcode_2d: ;AND abcd
-		NO_STOP
 		ABSOLUTE
 		MEMORY_GetByte
 		AND6502
 		DONE
 
 _JIT_insn_opcode_2e: ;ROL abcd
-		NO_STOP
 		ABSOLUTE
 		move.l	d0,-(sp)
 		RMW_GetByte
@@ -1468,16 +1469,13 @@ _JIT_insn_opcode_2e: ;ROL abcd
 		DONE
 
 _JIT_insn_opcode_2f: ;RLA abcd [unofficial - ROL Mem, then AND with A]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_30: ;BMI
-		IS_RELATIVE_STOP
-		BRANCH_WITH_BYTES_AND_CYCLES
-		BRANCH N,w,pl
+		RELATIVE
+		BRANCH N,w,mi
 
 _JIT_insn_opcode_31: ;AND (ab),y
-		NO_STOP
 		INDIRECT_Y
 		NCYCLES_Y
 		MEMORY_GetByte
@@ -1485,18 +1483,15 @@ _JIT_insn_opcode_31: ;AND (ab),y
 		DONE
 
 _JIT_insn_opcode_33: ;RLA (ab),y [unofficial - ROL Mem, then AND with A]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_35: ;AND ab,x
-		NO_STOP
 		ZPAGE_X
 		MEMORY_dGetByte
 		AND6502
 		DONE
 
 _JIT_insn_opcode_36: ;ROL ab,x
-		NO_STOP
 		ZPAGE_X
 		move.l	d0,-(sp)
 		MEMORY_dGetByte
@@ -1509,11 +1504,9 @@ _JIT_insn_opcode_36: ;ROL ab,x
 		DONE
 
 _JIT_insn_opcode_37: ;RLA ab,x [unofficial - ROL Mem, then AND with A]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_38: ;SEC
-		NO_STOP
 		IMPLIED
 		SetC
 		M68K_BYTES_TEMPLATE
@@ -1521,7 +1514,6 @@ _JIT_insn_opcode_38: ;SEC
 		DONE
 
 _JIT_insn_opcode_39: ;AND abcd,y
-		NO_STOP
 		ABSOLUTE_Y
 		NCYCLES_Y
 		MEMORY_GetByte
@@ -1529,11 +1521,9 @@ _JIT_insn_opcode_39: ;AND abcd,y
 		DONE
 
 _JIT_insn_opcode_3b: ;RLA abcd,y [unofficial - ROL Mem, then AND with A]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_3d: ;AND abcd,x
-		NO_STOP
 		ABSOLUTE_X
 		NCYCLES_X
 		MEMORY_GetByte
@@ -1541,7 +1531,6 @@ _JIT_insn_opcode_3d: ;AND abcd,x
 		DONE
 
 _JIT_insn_opcode_3e: ;ROL abcd,x
-		NO_STOP
 		ABSOLUTE_X
 		move.l	d0,-(sp)
 		RMW_GetByte
@@ -1554,43 +1543,33 @@ _JIT_insn_opcode_3e: ;ROL abcd,x
 		DONE
 
 _JIT_insn_opcode_3f: ;RLA abcd,x [unofficial - ROL Mem, then AND with A]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_40: ;RTI
-		IS_STOP
-		NO_OFFSET_WITH_CYCLES
-		CUSTOM
-		clr.l	d0
+		IMPLIED_RETURN
 		PLP
 		PLW
 		move.l	d0,reg_PC
-.m68k_cycles:
-		addq.l	#1,xpos							; 2 - 8
 		CHECKIRQ
 		RETURN_OR_JUMP
 		DONE
 
 _JIT_insn_opcode_41: ;EOR (ab,x)
-		NO_STOP
 		INDIRECT_X
 		MEMORY_GetByte
 		EOR6502
 		DONE
 
 _JIT_insn_opcode_43: ;LSE (ab,x) [unofficial - LSR then EOR result with A]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_45: ;EOR ab
-		NO_STOP
 		ZPAGE
 		MEMORY_dGetByte
 		EOR6502
 		DONE
 
 _JIT_insn_opcode_46: ;LSR ab
-		NO_STOP
 		ZPAGE
 		move.l	d0,-(sp)
 		MEMORY_dGetByte
@@ -1603,11 +1582,9 @@ _JIT_insn_opcode_46: ;LSR ab
 		DONE
 
 _JIT_insn_opcode_47: ;LSE ab [unofficial - LSR then EOR result with A]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_48: ;PHA
-		NO_STOP
 		IMPLIED
 		move.l	reg_A,d0
 		PH
@@ -1616,13 +1593,11 @@ _JIT_insn_opcode_48: ;PHA
 		DONE
 
 _JIT_insn_opcode_49: ;EOR #ab
-		NO_STOP
 		IMMEDIATE
 		EOR6502
 		DONE
 
 _JIT_insn_opcode_4a: ;LSR
-		NO_STOP
 		ACCUMULATOR
 		LSR_ONLY reg_A
 		M68K_BYTES_TEMPLATE
@@ -1630,29 +1605,22 @@ _JIT_insn_opcode_4a: ;LSR
 		DONE
 
 _JIT_insn_opcode_4b: ;ALR #ab [unofficial - Acc AND Data, LSR result]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_4c: ;JMP abcd
-		IS_STOP
-		JUMP_WITH_CYCLES
-		CUSTOM
+		ABSOLUTE_JUMP
 .m68k_data:
 		move.l	#$0000abcd,reg_PC
-.m68k_cycles:
-		addq.l	#1,xpos							; 2 - 8
 		RETURN_OR_JUMP
 		DONE
 
 _JIT_insn_opcode_4d: ;EOR abcd
-		NO_STOP
 		ABSOLUTE
 		MEMORY_GetByte
 		EOR6502
 		DONE
 
 _JIT_insn_opcode_4e: ;LSR abcd
-		NO_STOP
 		ABSOLUTE
 		move.l	d0,-(sp)
 		RMW_GetByte
@@ -1665,16 +1633,13 @@ _JIT_insn_opcode_4e: ;LSR abcd
 		DONE
 
 _JIT_insn_opcode_4f: ;LSE abcd [unofficial - LSR then EOR result with A]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_50: ;BVC
-		IS_RELATIVE_STOP
-		BRANCH_WITH_BYTES_AND_CYCLES
-		BRANCH V,b,ne
+		RELATIVE
+		BRANCH V,b,eq
 
 _JIT_insn_opcode_51: ;EOR (ab),y
-		NO_STOP
 		INDIRECT_Y
 		NCYCLES_Y
 		MEMORY_GetByte
@@ -1682,18 +1647,15 @@ _JIT_insn_opcode_51: ;EOR (ab),y
 		DONE
 
 _JIT_insn_opcode_53: ;LSE (ab),y [unofficial - LSR then EOR result with A]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_55: ;EOR ab,x
-		NO_STOP
 		ZPAGE_X
 		MEMORY_dGetByte
 		EOR6502
 		DONE
 
 _JIT_insn_opcode_56: ;LSR ab,x
-		NO_STOP
 		ZPAGE_X
 		move.l	d0,-(sp)
 		MEMORY_dGetByte
@@ -1706,11 +1668,9 @@ _JIT_insn_opcode_56: ;LSR ab,x
 		DONE
 
 _JIT_insn_opcode_57: ;LSE ab,x [unofficial - LSR then EOR result with A]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_58: ;CLI
-		NO_STOP
 		IMPLIED
 		ClrI
 		M68K_BYTES_TEMPLATE
@@ -1719,7 +1679,6 @@ _JIT_insn_opcode_58: ;CLI
 		DONE
 
 _JIT_insn_opcode_59: ;EOR abcd,y
-		NO_STOP
 		ABSOLUTE_Y
 		NCYCLES_Y
 		MEMORY_GetByte
@@ -1727,11 +1686,9 @@ _JIT_insn_opcode_59: ;EOR abcd,y
 		DONE
 
 _JIT_insn_opcode_5b: ;LSE abcd,y [unofficial - LSR then EOR result with A]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_5d: ;EOR abcd,x
-		NO_STOP
 		ABSOLUTE_X
 		NCYCLES_X
 		MEMORY_GetByte
@@ -1739,7 +1696,6 @@ _JIT_insn_opcode_5d: ;EOR abcd,x
 		DONE
 
 _JIT_insn_opcode_5e: ;LSR abcd,x
-		NO_STOP
 		ABSOLUTE_X
 		move.l	d0,-(sp)
 		RMW_GetByte
@@ -1752,19 +1708,13 @@ _JIT_insn_opcode_5e: ;LSR abcd,x
 		DONE
 
 _JIT_insn_opcode_5f: ;LSE abcd,x [unofficial - LSR then EOR result with A]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_60: ;RTS
-		IS_STOP
-		NO_OFFSET_WITH_CYCLES
-		CUSTOM
-		clr.l	d0
+		IMPLIED_RETURN
 		PLW
 		addq.w	#1,d0
 		move.l	d0,reg_PC
-.m68k_cycles:
-		addq.l	#1,xpos							; 2 - 8
 		; TODO (incl. local->global...)
 		;if (CPU_rts_handler != NULL) {
 		;	CPU_rts_handler();
@@ -1774,25 +1724,21 @@ _JIT_insn_opcode_60: ;RTS
 		DONE
 
 _JIT_insn_opcode_61: ;ADC (ab,x)
-		NO_STOP
 		INDIRECT_X
 		MEMORY_GetByte
 		ADC6502
 		DONE
 
 _JIT_insn_opcode_63: ;RRA (ab,x) [unofficial - ROR Mem, then ADC to Acc]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_65: ;ADC ab
-		NO_STOP
 		ZPAGE
 		MEMORY_dGetByte
 		ADC6502
 		DONE
 
 _JIT_insn_opcode_66: ;ROR ab
-		NO_STOP
 		ZPAGE
 		move.l	d0,-(sp)
 		MEMORY_dGetByte
@@ -1805,11 +1751,9 @@ _JIT_insn_opcode_66: ;ROR ab
 		DONE
 
 _JIT_insn_opcode_67: ;RRA ab [unofficial - ROR Mem, then ADC to Acc]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_68: ;PLA
-		NO_STOP
 		IMPLIED
 		PL
 		move.b	d0,reg_A
@@ -1820,13 +1764,11 @@ _JIT_insn_opcode_68: ;PLA
 		DONE
 
 _JIT_insn_opcode_69: ;ADC #ab
-		NO_STOP
 		IMMEDIATE
 		ADC6502
 		DONE
 
 _JIT_insn_opcode_6a: ;ROR
-		NO_STOP
 		ACCUMULATOR
 		ROR_ONLY reg_A
 		M68K_BYTES_TEMPLATE
@@ -1834,13 +1776,10 @@ _JIT_insn_opcode_6a: ;ROR
 		DONE
 
 _JIT_insn_opcode_6b: ;ARR #ab [unofficial - Acc AND Data, ROR result]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_6c: ;JMP (abcd)
-		IS_STOP
-		OFFSET_WITH_CYCLES .m68k_data-.m68k_start+4
-		CUSTOM
+		INDIRECT
 .m68k_data:
 		move.l	#$0000abcd,d0
 		cmp.b	#$ff,d0
@@ -1856,20 +1795,16 @@ _JIT_insn_opcode_6c: ;JMP (abcd)
 		MEMORY_dGetWord
 .skip:
 		move.l	d0,reg_PC
-.m68k_cycles:
-		addq.l	#1,xpos							; 2 - 8
 		RETURN_OR_JUMP
 		DONE
 
 _JIT_insn_opcode_6d: ;ADC abcd
-		NO_STOP
 		ABSOLUTE
 		MEMORY_GetByte
 		ADC6502
 		DONE
 
 _JIT_insn_opcode_6e: ;ROR abcd
-		NO_STOP
 		ABSOLUTE
 		move.l	d0,-(sp)
 		RMW_GetByte
@@ -1882,16 +1817,13 @@ _JIT_insn_opcode_6e: ;ROR abcd
 		DONE
 
 _JIT_insn_opcode_6f: ;RRA abcd [unofficial - ROR Mem, then ADC to Acc]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_70: ;BVS
-		IS_RELATIVE_STOP
-		BRANCH_WITH_BYTES_AND_CYCLES
-		BRANCH V,b,eq
+		RELATIVE
+		BRANCH V,b,ne
 
 _JIT_insn_opcode_71: ;ADC (ab),y
-		NO_STOP
 		INDIRECT_Y
 		NCYCLES_Y
 		MEMORY_GetByte
@@ -1899,18 +1831,15 @@ _JIT_insn_opcode_71: ;ADC (ab),y
 		DONE
 
 _JIT_insn_opcode_73: ;RRA (ab),y [unofficial - ROR Mem, then ADC to Acc]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_75: ;ADC ab,x
-		NO_STOP
 		ZPAGE_X
 		MEMORY_dGetByte
 		ADC6502
 		DONE
 
 _JIT_insn_opcode_76: ;ROR ab,x
-		NO_STOP
 		ZPAGE_X
 		move.l	d0,-(sp)
 		MEMORY_dGetByte
@@ -1923,11 +1852,9 @@ _JIT_insn_opcode_76: ;ROR ab,x
 		DONE
 
 _JIT_insn_opcode_77: ;RRA ab,x [unofficial - ROR Mem, then ADC to Acc]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_78: ;SEI
-		NO_STOP
 		IMPLIED
 		SetI
 		M68K_BYTES_TEMPLATE
@@ -1935,7 +1862,6 @@ _JIT_insn_opcode_78: ;SEI
 		DONE
 
 _JIT_insn_opcode_79: ;ADC abcd,y
-		NO_STOP
 		ABSOLUTE_Y
 		NCYCLES_Y
 		MEMORY_GetByte
@@ -1943,11 +1869,9 @@ _JIT_insn_opcode_79: ;ADC abcd,y
 		DONE
 
 _JIT_insn_opcode_7b: ;RRA abcd,y [unofficial - ROR Mem, then ADC to Acc]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_7d: ;ADC abcd,x
-		NO_STOP
 		ABSOLUTE_X
 		NCYCLES_X
 		MEMORY_GetByte
@@ -1955,7 +1879,6 @@ _JIT_insn_opcode_7d: ;ADC abcd,x
 		DONE
 
 _JIT_insn_opcode_7e: ;ROR abcd,x
-		NO_STOP
 		ABSOLUTE_X
 		move.l	d0,-(sp)
 		RMW_GetByte
@@ -1968,11 +1891,9 @@ _JIT_insn_opcode_7e: ;ROR abcd,x
 		DONE
 
 _JIT_insn_opcode_7f: ;RRA abcd,x [unofficial - ROR Mem, then ADC to Acc]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_81: ;STA (ab,x)
-		NO_STOP
 		INDIRECT_X
 		move.b	reg_A,d1
 		MEMORY_PutByte
@@ -1981,11 +1902,9 @@ _JIT_insn_opcode_81: ;STA (ab,x)
 		DONE
 
 _JIT_insn_opcode_83: ;SAX (ab,x) [unofficial - Store result A AND X
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_84: ;STY ab
-		NO_STOP
 		ZPAGE
 		move.b	reg_Y,d1
 		MEMORY_PutByte_ZP
@@ -1994,7 +1913,6 @@ _JIT_insn_opcode_84: ;STY ab
 		DONE
 
 _JIT_insn_opcode_85: ;STA ab
-		NO_STOP
 		ZPAGE
 		move.b	reg_A,d1
 		MEMORY_PutByte_ZP
@@ -2003,7 +1921,6 @@ _JIT_insn_opcode_85: ;STA ab
 		DONE
 
 _JIT_insn_opcode_86: ;STX ab
-		NO_STOP
 		ZPAGE
 		move.b	reg_X,d1
 		MEMORY_PutByte_ZP
@@ -2012,11 +1929,9 @@ _JIT_insn_opcode_86: ;STX ab
 		DONE
 
 _JIT_insn_opcode_87: ;SAX ab [unofficial - Store result A AND X]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_88: ;DEY
-		NO_STOP
 		IMPLIED
 		subq.b	#1,reg_Y
 		move.b	reg_Y,Z
@@ -2026,7 +1941,6 @@ _JIT_insn_opcode_88: ;DEY
 		DONE
 
 _JIT_insn_opcode_8a: ;TXA
-		NO_STOP
 		IMPLIED
 		move.b	reg_X,reg_A
 		move.b	reg_A,Z
@@ -2036,11 +1950,9 @@ _JIT_insn_opcode_8a: ;TXA
 		DONE
 
 _JIT_insn_opcode_8b: ;ANE #ab [unofficial - A AND X AND (Mem OR $EF) to Acc] (Fox)
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_8c: ;STY abcd
-		NO_STOP
 		ABSOLUTE
 		move.b	reg_Y,d1
 		MEMORY_PutByte
@@ -2049,7 +1961,6 @@ _JIT_insn_opcode_8c: ;STY abcd
 		DONE
 
 _JIT_insn_opcode_8d: ;STA abcd
-		NO_STOP
 		ABSOLUTE
 		move.b	reg_A,d1
 		MEMORY_PutByte
@@ -2058,7 +1969,6 @@ _JIT_insn_opcode_8d: ;STA abcd
 		DONE
 
 _JIT_insn_opcode_8e: ;STX abcd
-		NO_STOP
 		ABSOLUTE
 		move.b	reg_X,d1
 		MEMORY_PutByte
@@ -2067,16 +1977,13 @@ _JIT_insn_opcode_8e: ;STX abcd
 		DONE
 
 _JIT_insn_opcode_8f: ;SAX abcd [unofficial - Store result A AND X]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_90: ;BCC
-		IS_RELATIVE_STOP
-		BRANCH_WITH_BYTES_AND_CYCLES
-		BRANCH C,b,ne
+		RELATIVE
+		BRANCH C,b,eq
 
 _JIT_insn_opcode_91: ;STA (ab),y
-		NO_STOP
 		INDIRECT_Y
 		move.b	reg_A,d1
 		MEMORY_PutByte
@@ -2085,11 +1992,9 @@ _JIT_insn_opcode_91: ;STA (ab),y
 		DONE
 
 _JIT_insn_opcode_93: ;SHA (ab),y [unofficial, UNSTABLE - Store A AND X AND (H+1) ?] (Fox)
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_94: ;STY ab,x
-		NO_STOP
 		ZPAGE_X
 		move.b	reg_Y,d1
 		MEMORY_PutByte_ZP
@@ -2098,7 +2003,6 @@ _JIT_insn_opcode_94: ;STY ab,x
 		DONE
 
 _JIT_insn_opcode_95: ;STA ab,x
-		NO_STOP
 		ZPAGE_X
 		move.b	reg_A,d1
 		MEMORY_PutByte_ZP
@@ -2107,7 +2011,6 @@ _JIT_insn_opcode_95: ;STA ab,x
 		DONE
 
 _JIT_insn_opcode_96: ;STX ab,y
-		NO_STOP
 		ZPAGE_X
 		move.b	reg_X,d1
 		MEMORY_PutByte_ZP
@@ -2116,11 +2019,9 @@ _JIT_insn_opcode_96: ;STX ab,y
 		DONE
 
 _JIT_insn_opcode_97: ;SAX ab,y [unofficial - Store result A AND X]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_98: ;TYA
-		NO_STOP
 		IMPLIED
 		move.b	reg_Y,reg_A
 		move.b	reg_A,Z
@@ -2130,7 +2031,6 @@ _JIT_insn_opcode_98: ;TYA
 		DONE
 
 _JIT_insn_opcode_99: ;STA abcd,y
-		NO_STOP
 		ABSOLUTE_Y
 		move.b	reg_A,d1
 		MEMORY_PutByte
@@ -2139,7 +2039,6 @@ _JIT_insn_opcode_99: ;STA abcd,y
 		DONE
 
 _JIT_insn_opcode_9a: ;TXS
-		NO_STOP
 		IMPLIED
 		move.b	reg_X,reg_S+1
 		M68K_BYTES_TEMPLATE
@@ -2147,15 +2046,12 @@ _JIT_insn_opcode_9a: ;TXS
 		DONE
 
 _JIT_insn_opcode_9b: ;SHS abcd,y [unofficial, UNSTABLE] (Fox)
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_9c: ;SHY abcd,x [unofficial - Store Y and (H+1)] (Fox)
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_9d: ;STA abcd,x
-		NO_STOP
 		ABSOLUTE_X
 		move.b	reg_A,d1
 		MEMORY_PutByte
@@ -2164,63 +2060,52 @@ _JIT_insn_opcode_9d: ;STA abcd,x
 		DONE
 
 _JIT_insn_opcode_9e: ;SHX abcd,y [unofficial - Store X and (H+1)] (Fox)
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_9f: ;SHA abcd,y [unofficial, UNSTABLE - Store A AND X AND (H+1) ?] (Fox)
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_a0: ;LDY #ab
-		NO_STOP
 		IMMEDIATE
 		LDY6502
 		DONE
 
 _JIT_insn_opcode_a1: ;LDA (ab,x)
-		NO_STOP
 		INDIRECT_X
 		MEMORY_GetByte
 		LDA6502
 		DONE
 
 _JIT_insn_opcode_a2: ;LDX #ab
-		NO_STOP
 		IMMEDIATE
 		LDX6502
 		DONE
 
 _JIT_insn_opcode_a3: ;LAX (ab,x) [unofficial]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_a4: ;LDY ab
-		NO_STOP
 		ZPAGE
 		MEMORY_dGetByte
 		LDY6502
 		DONE
 
 _JIT_insn_opcode_a5: ;LDA ab
-		NO_STOP
 		ZPAGE
 		MEMORY_dGetByte
 		LDA6502
 		DONE
 
 _JIT_insn_opcode_a6: ;LDX ab
-		NO_STOP
 		ZPAGE
 		MEMORY_dGetByte
 		LDX6502
 		DONE
 
 _JIT_insn_opcode_a7: ;LAX ab [unofficial]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_a8: ;TAY
-		NO_STOP
 		IMPLIED
 		move.b	reg_A,reg_Y
 		move.b	reg_Y,Z
@@ -2230,13 +2115,11 @@ _JIT_insn_opcode_a8: ;TAY
 		DONE
 
 _JIT_insn_opcode_a9: ;LDA #ab
-		NO_STOP
 		IMMEDIATE
 		LDA6502
 		DONE
 
 _JIT_insn_opcode_aa: ;TAX
-		NO_STOP
 		IMPLIED
 		move.b	reg_A,reg_X
 		move.b	reg_X,Z
@@ -2246,41 +2129,34 @@ _JIT_insn_opcode_aa: ;TAX
 		DONE
 
 _JIT_insn_opcode_ab: ;ANX #ab [unofficial - AND #ab, then TAX]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_ac: ;LDY abcd
-		NO_STOP
 		ABSOLUTE
 		MEMORY_GetByte
 		LDY6502
 		DONE
 
 _JIT_insn_opcode_ad: ;LDA abcd
-		NO_STOP
 		ABSOLUTE
 		MEMORY_GetByte
 		LDA6502
 		DONE
 
 _JIT_insn_opcode_ae: ;LDX abcd
-		NO_STOP
 		ABSOLUTE
 		MEMORY_GetByte
 		LDX6502
 		DONE
 
 _JIT_insn_opcode_af: ;LAX abcd [unofficial]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_b0: ;BCS
-		IS_RELATIVE_STOP
-		BRANCH_WITH_BYTES_AND_CYCLES
-		BRANCH C,b,eq
+		RELATIVE
+		BRANCH C,b,ne
 
 _JIT_insn_opcode_b1: ;LDA (ab),y
-		NO_STOP
 		INDIRECT_Y
 		NCYCLES_Y
 		MEMORY_GetByte
@@ -2288,36 +2164,30 @@ _JIT_insn_opcode_b1: ;LDA (ab),y
 		DONE
 
 _JIT_insn_opcode_b3: ;LAX (ab),y [unofficial]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_b4: ;LDY ab,x
-		NO_STOP
 		ZPAGE_X
 		MEMORY_dGetByte
 		LDY6502
 		DONE
 
 _JIT_insn_opcode_b5: ;LDA ab,x
-		NO_STOP
 		ZPAGE_X
 		MEMORY_dGetByte
 		LDA6502
 		DONE
 
 _JIT_insn_opcode_b6: ;LDX ab,y
-		NO_STOP
 		ZPAGE_Y
 		MEMORY_dGetByte
 		LDX6502
 		DONE
 
 _JIT_insn_opcode_b7: ;LAX ab,y [unofficial]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_b8: ;CLV
-		NO_STOP
 		IMPLIED
 		ClrV
 		M68K_BYTES_TEMPLATE
@@ -2325,7 +2195,6 @@ _JIT_insn_opcode_b8: ;CLV
 		DONE
 
 _JIT_insn_opcode_b9: ;LDA abcd,y
-		NO_STOP
 		ABSOLUTE_Y
 		NCYCLES_Y
 		MEMORY_GetByte
@@ -2333,7 +2202,6 @@ _JIT_insn_opcode_b9: ;LDA abcd,y
 		DONE
 
 _JIT_insn_opcode_ba: ;TSX
-		NO_STOP
 		IMPLIED
 		move.b	reg_S+1,reg_X
 		move.b	reg_X,Z
@@ -2343,11 +2211,9 @@ _JIT_insn_opcode_ba: ;TSX
 		DONE
 
 _JIT_insn_opcode_bb: ;LAS abcd,y [unofficial - AND S with Mem, transfer to A and X (Fox)
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_bc: ;LDY abcd,x
-		NO_STOP
 		ABSOLUTE_X
 		NCYCLES_X
 		MEMORY_GetByte
@@ -2355,7 +2221,6 @@ _JIT_insn_opcode_bc: ;LDY abcd,x
 		DONE
 
 _JIT_insn_opcode_bd: ;LDA abcd,x
-		NO_STOP
 		ABSOLUTE_X
 		NCYCLES_X
 		MEMORY_GetByte
@@ -2363,7 +2228,6 @@ _JIT_insn_opcode_bd: ;LDA abcd,x
 		DONE
 
 _JIT_insn_opcode_be: ;LDX abcd,y
-		NO_STOP
 		ABSOLUTE_Y
 		NCYCLES_Y
 		MEMORY_GetByte
@@ -2371,42 +2235,35 @@ _JIT_insn_opcode_be: ;LDX abcd,y
 		DONE
 
 _JIT_insn_opcode_bf: ;LAX abcd,y [unofficial]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_c0: ;CPY #ab
-		NO_STOP
 		IMMEDIATE
 		CPY6502
 		DONE
 
 _JIT_insn_opcode_c1: ;CMP (ab,x)
-		NO_STOP
 		INDIRECT_X
 		MEMORY_GetByte
 		CMP6502
 		DONE
 
 _JIT_insn_opcode_c3: ;DCM (ab,x) [unofficial - DEC Mem then CMP with Acc]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_c4: ;CPY ab
-		NO_STOP
 		ZPAGE
 		MEMORY_dGetByte
 		CPY6502
 		DONE
 
 _JIT_insn_opcode_c5: ;CMP ab
-		NO_STOP
 		ZPAGE
 		MEMORY_dGetByte
 		CMP6502
 		DONE
 
 _JIT_insn_opcode_c6: ;DEC ab
-		NO_STOP
 		ZPAGE
 		move.l	d0,-(sp)
 		MEMORY_dGetByte
@@ -2421,11 +2278,9 @@ _JIT_insn_opcode_c6: ;DEC ab
 		DONE
 
 _JIT_insn_opcode_c7: ;DCM ab [unofficial - DEC Mem then CMP with Acc]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_c8: ;INY
-		NO_STOP
 		IMPLIED
 		addq.b	#1,reg_Y
 		move.b	reg_Y,Z
@@ -2435,13 +2290,11 @@ _JIT_insn_opcode_c8: ;INY
 		DONE
 
 _JIT_insn_opcode_c9: ;CMP #ab
-		NO_STOP
 		IMMEDIATE
 		CMP6502
 		DONE
 
 _JIT_insn_opcode_ca: ;DEX
-		NO_STOP
 		IMPLIED
 		subq.b	#1,reg_X
 		move.b	reg_X,Z
@@ -2451,25 +2304,21 @@ _JIT_insn_opcode_ca: ;DEX
 		DONE
 
 _JIT_insn_opcode_cb: ;SBX #ab [unofficial - store ((A AND X) - Mem) in X] (Fox)
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_cc: ;CPY abcd
-		NO_STOP
 		ABSOLUTE
 		MEMORY_GetByte
 		CPY6502
 		DONE
 
 _JIT_insn_opcode_cd: ;CMP abcd
-		NO_STOP
 		ABSOLUTE
 		MEMORY_GetByte
 		CMP6502
 		DONE
 
 _JIT_insn_opcode_ce: ;DEC abcd
-		NO_STOP
 		ABSOLUTE
 		move.l	d0,-(sp)
 		RMW_GetByte
@@ -2484,16 +2333,13 @@ _JIT_insn_opcode_ce: ;DEC abcd
 		DONE
 
 _JIT_insn_opcode_cf: ;DCM abcd [unofficial - DEC Mem then CMP with Acc]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_d0: ;BNE
-		IS_RELATIVE_STOP
-		BRANCH_WITH_BYTES_AND_CYCLES
-		BRANCH Z,b,eq
+		RELATIVE
+		BRANCH Z,b,ne
 
 _JIT_insn_opcode_d1: ;CMP (ab),y
-		NO_STOP
 		INDIRECT_Y
 		NCYCLES_Y
 		MEMORY_GetByte
@@ -2501,18 +2347,15 @@ _JIT_insn_opcode_d1: ;CMP (ab),y
 		DONE
 
 _JIT_insn_opcode_d3: ;DCM (ab),y [unofficial - DEC Mem then CMP with Acc]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_d5: ;CMP ab,x
-		NO_STOP
 		ZPAGE_X
 		MEMORY_dGetByte
 		CMP6502
 		DONE
 
 _JIT_insn_opcode_d6: ;DEC ab,x
-		NO_STOP
 		ZPAGE_X
 		move.l	d0,-(sp)
 		MEMORY_dGetByte
@@ -2527,11 +2370,9 @@ _JIT_insn_opcode_d6: ;DEC ab,x
 		DONE
 
 _JIT_insn_opcode_d7: ;DCM ab,x [unofficial - DEC Mem then CMP with Acc]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_d8: ;CLD
-		NO_STOP
 		IMPLIED
 		ClrD
 		M68K_BYTES_TEMPLATE
@@ -2539,7 +2380,6 @@ _JIT_insn_opcode_d8: ;CLD
 		DONE
 
 _JIT_insn_opcode_d9: ;CMP abcd,y
-		NO_STOP
 		ABSOLUTE_Y
 		NCYCLES_Y
 		MEMORY_GetByte
@@ -2547,11 +2387,9 @@ _JIT_insn_opcode_d9: ;CMP abcd,y
 		DONE
 
 _JIT_insn_opcode_db: ;DCM abcd,y [unofficial - DEC Mem then CMP with Acc]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_dd: ;CMP abcd,x
-		NO_STOP
 		ABSOLUTE_X
 		NCYCLES_X
 		MEMORY_GetByte
@@ -2559,7 +2397,6 @@ _JIT_insn_opcode_dd: ;CMP abcd,x
 		DONE
 
 _JIT_insn_opcode_de: ;DEC abcd,x
-		NO_STOP
 		ABSOLUTE_X
 		move.l	d0,-(sp)
 		RMW_GetByte
@@ -2574,42 +2411,35 @@ _JIT_insn_opcode_de: ;DEC abcd,x
 		DONE
 
 _JIT_insn_opcode_df: ;DCM abcd,x [unofficial - DEC Mem then CMP with Acc]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_e0: ;CPX #ab
-		NO_STOP
 		IMMEDIATE
 		CPX6502
 		DONE
 
 _JIT_insn_opcode_e1: ;SBC (ab,x)
-		NO_STOP
 		INDIRECT_X
 		MEMORY_GetByte
 		SBC6502
 		DONE
 
 _JIT_insn_opcode_e3: ;INS (ab,x) [unofficial - INC Mem then SBC with Acc]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_e4: ;CPX ab
-		NO_STOP
 		ZPAGE
 		MEMORY_dGetByte
 		CPX6502
 		DONE
 
 _JIT_insn_opcode_e5: ;SBC ab
-		NO_STOP
 		ZPAGE
 		MEMORY_dGetByte
 		SBC6502
 		DONE
 
 _JIT_insn_opcode_e6: ;INC ab
-		NO_STOP
 		ZPAGE
 		move.l	d0,-(sp)
 		MEMORY_dGetByte
@@ -2624,11 +2454,9 @@ _JIT_insn_opcode_e6: ;INC ab
 		DONE
 
 _JIT_insn_opcode_e7: ;INS ab [unofficial - INC Mem then SBC with Acc]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_e8: ;INX
-		NO_STOP
 		IMPLIED
 		addq.b	#1,reg_X
 		move.b	reg_X,Z
@@ -2638,13 +2466,11 @@ _JIT_insn_opcode_e8: ;INX
 		DONE
 
 _JIT_insn_opcode_eb: ;SBC #ab [unofficial]; e9 official
-		NO_STOP
 		IMMEDIATE
 		SBC6502
 		DONE
 
 _JIT_insn_opcode_fa: ;NOP [unofficial]; ea official
-		NO_STOP
 		IMPLIED
 		; nothing to do
 		M68K_BYTES_TEMPLATE
@@ -2652,21 +2478,18 @@ _JIT_insn_opcode_fa: ;NOP [unofficial]; ea official
 		DONE
 
 _JIT_insn_opcode_ec: ;CPX abcd
-		NO_STOP
 		ABSOLUTE
 		MEMORY_GetByte
 		CPX6502
 		DONE
 
 _JIT_insn_opcode_ed: ;SBC abcd
-		NO_STOP
 		ABSOLUTE
 		MEMORY_GetByte
 		SBC6502
 		DONE
 
 _JIT_insn_opcode_ee: ;INC abcd
-		NO_STOP
 		ABSOLUTE
 		move.l	d0,-(sp)
 		RMW_GetByte
@@ -2681,16 +2504,13 @@ _JIT_insn_opcode_ee: ;INC abcd
 		DONE
 
 _JIT_insn_opcode_ef: ;INS abcd [unofficial - INC Mem then SBC with Acc]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_f0: ;BEQ
-		IS_RELATIVE_STOP
-		BRANCH_WITH_BYTES_AND_CYCLES
-		BRANCH Z,b,ne
+		RELATIVE
+		BRANCH Z,b,eq
 
 _JIT_insn_opcode_f1: ;SBC (ab),y
-		NO_STOP
 		INDIRECT_Y
 		NCYCLES_Y
 		MEMORY_GetByte
@@ -2698,18 +2518,15 @@ _JIT_insn_opcode_f1: ;SBC (ab),y
 		DONE
 
 _JIT_insn_opcode_f3: ;INS (ab),y [unofficial - INC Mem then SBC with Acc]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_f5: ;SBC ab,x
-		NO_STOP
 		ZPAGE_X
 		MEMORY_dGetByte
 		SBC6502
 		DONE
 
 _JIT_insn_opcode_f6: ;INC ab,x
-		NO_STOP
 		ZPAGE_X
 		move.l	d0,-(sp)
 		MEMORY_dGetByte
@@ -2724,11 +2541,9 @@ _JIT_insn_opcode_f6: ;INC ab,x
 		DONE
 
 _JIT_insn_opcode_f7: ;INS ab,x [unofficial - INC Mem then SBC with Acc]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_f8: ;SED
-		NO_STOP
 		IMPLIED
 		SetD
 		M68K_BYTES_TEMPLATE
@@ -2736,7 +2551,6 @@ _JIT_insn_opcode_f8: ;SED
 		DONE
 
 _JIT_insn_opcode_f9: ;SBC abcd,y
-		NO_STOP
 		ABSOLUTE_Y
 		NCYCLES_Y
 		MEMORY_GetByte
@@ -2744,11 +2558,9 @@ _JIT_insn_opcode_f9: ;SBC abcd,y
 		DONE
 
 _JIT_insn_opcode_fb: ;INS abcd,y [unofficial - INC Mem then SBC with Acc]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_fd: ;SBC abcd,x
-		NO_STOP
 		ABSOLUTE_X
 		NCYCLES_X
 		MEMORY_GetByte
@@ -2756,7 +2568,6 @@ _JIT_insn_opcode_fd: ;SBC abcd,x
 		DONE
 
 _JIT_insn_opcode_fe: ;INC abcd,x
-		NO_STOP
 		ABSOLUTE_X
 		move.l	d0,-(sp)
 		RMW_GetByte
@@ -2771,19 +2582,15 @@ _JIT_insn_opcode_fe: ;INC abcd,x
 		DONE
 
 _JIT_insn_opcode_ff: ;INS abcd,x [unofficial - INC Mem then SBC with Acc]
-		;NO_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_d2: ;ESCRTS #ab (CIM) - on Atari is here instruction CIM [unofficial] !RS!
-		;IS_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_f2: ;ESC #ab (CIM) - on Atari is here instruction CIM [unofficial] !RS!
-		;IS_STOP
 		NOT_IMPLEMENTED
 
 _JIT_insn_opcode_b2: ;CIM [unofficial - crash intermediate]
-		;IS_STOP
 		NOT_IMPLEMENTED
 
 ; ---------------------------------------------

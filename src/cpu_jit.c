@@ -175,11 +175,20 @@ static const int JIT_compiler_bytes_table[256] =
 	2, 2, 2, 2, 2, 2, 2, 2, 1, 3, 1, 3, 3, 3, 3, 3		/* Fx */
 };
 
-enum stop_t {
-    Stop_Unknown = 0xffff,
-    Stop_No = 0,
-    Stop_Absolute = 1,
-    Stop_Relative = 2
+enum addressing_mode_t {
+	Accumulator,	/* A */
+	Absolute,		/* $ABCD */
+	Absolute_X,		/* $ABCD,X */
+	Absolute_Y,		/* $ABCD,Y */
+	Immediate,		/* #ab */
+	Implied,		/* - */
+	Indirect,		/* ($ABCD) */
+	X_Indirect,		/* ($AB,X) */
+	Indirecty_Y,	/* ($AB),Y */
+	Relative,		/* $ab */
+	ZeroPage,		/* $AB */
+	ZeroPage_X,		/* $AB,X */
+	ZeroPage_Y		/* $AB,Y */
 };
 
 struct JIT_block_t {
@@ -231,7 +240,7 @@ static struct CPU_JIT_native_code_t *find_code(const UWORD pc)
 	return &MEMORY_JIT_mem[pc];
 }
 static struct CPU_JIT_native_code_t *compile_code(const UWORD pc) {
-	int stop = FALSE;
+	UBYTE stop = FALSE;
 	UWORD addr = pc;
 	ULONG native_size = 0;
 	struct JIT_block_t *block;
@@ -244,7 +253,7 @@ static struct CPU_JIT_native_code_t *compile_code(const UWORD pc) {
 		insn = MEMORY_mem[addr];
 		insn_template = JIT_compiler_insn_table[insn];
 
-		if (insn_template->is_stop == Stop_Unknown) {
+		if (insn_template->is_stop == 0xff) {
 			Log_print("insn %02x at address %04x not implemented", insn, addr);
 			/* not implemented */
 			return NULL;
@@ -259,7 +268,7 @@ static struct CPU_JIT_native_code_t *compile_code(const UWORD pc) {
 		native_size += insn_template->native_code_size;
 
 		addr += JIT_compiler_bytes_table[insn];
-		stop = (insn_template->is_stop == Stop_Absolute);
+		stop = insn_template->is_stop;
 	}
 
 	assert(native_size > 0);
@@ -303,7 +312,7 @@ static struct CPU_JIT_native_code_t *compile_code(const UWORD pc) {
 				native_code->insn_info->data_type = Data_Type_OpLo;
 
 				data = MEMORY_mem[addr+1];
-				if (insn_template->is_stop == Stop_Relative) {
+				if (insn_template->addressing_mode == Relative) {
 					/* special case: bcc */
 					data = addr + ((UWORD) ((SBYTE) data)) + 2;
 				}
@@ -336,7 +345,7 @@ static struct CPU_JIT_native_code_t *compile_code(const UWORD pc) {
 
 		code += insn_template->native_code_size;
 		addr += bytes;
-		stop = (insn_template->is_stop == Stop_Absolute);
+		stop = insn_template->is_stop;
 	}
 
 	block->end_addr = addr;
@@ -473,7 +482,7 @@ int CPU_JIT_Invalidate(const UWORD addr)
 			free(block);
 		} else {
 			/* NOTE: this assumes that native "return from subroutine" will never take more space than already allocated */
-			assert(JIT_insn_opcode_60.is_stop != Stop_Unknown);
+			assert(JIT_insn_opcode_60.is_stop != 0xff);
 			CPU_JIT_Instance(native_code->insn_addr, &JIT_insn_opcode_60, 0, 0, 0);
 		}
 
@@ -525,7 +534,7 @@ void CPU_JIT_InvalidateAllocatedCode(struct CPU_JIT_native_code_t *native_code, 
 				free(block);
 			} else {
 				/* NOTE: this assumes that native "return from subroutine" will never take more space than already allocated */
-				assert(JIT_insn_opcode_60.is_stop != Stop_Unknown);
+				assert(JIT_insn_opcode_60.is_stop != 0xff);
 				CPU_JIT_Instance(native_code[i].insn_addr, &JIT_insn_opcode_60, 0, 0, 0);
 			}
 		}
