@@ -895,35 +895,9 @@ _CPU_JIT_Instance:
 		macro	ADC6502
 		btst	#D_FLAG,_CPU_regP
 		beq.b	.binary_adc\@
-
 .decimal_adc\@:
-		unpk	reg_A,d1,#0
-		unpk	d0,Z,#0
-		add.b	C,C
-		addx.w	Z,d1
-		cmp.b	#$0a,d1
-		blo.b	.no_carry\@
-		add.w	#$0106,d1
-.no_carry\@:
-		pack	d1,d1,#0
-		move.b	d1,N
-		ext.w	N
-		move.b	reg_A,Z
-		add.b	C,C
-		addx.b	d0,Z
-		eor.b	d0,reg_A
-		not.b	reg_A
-		eor.b	d1,d0
-		and.b	reg_A,d0
-		smi		V
-		move.b	d1,reg_A
-		cmp.w	#$0a00,d1
-		shs		C
-		blo.b	.no_carry2\@
-		add.b	#$60,reg_A
-.no_carry2\@:
-		bra.b	.skip\@
-
+		pea		(.skip\@,pc)
+		jmp		decimal_adc
 .binary_adc\@:
 		add.b	C,C
 		addx.b	d0,reg_A
@@ -939,30 +913,9 @@ _CPU_JIT_Instance:
 		macro	SBC6502
 		btst	#D_FLAG,_CPU_regP
 		beq.b	.binary_sbc\@
-
 .decimal_sbc\@:
-		move.b	reg_A,Z
-		unpk	reg_A,reg_A,#0
-		unpk	d0,d1,#0
-		not.b	C
-		add.b	C,C
-		subx.w	d1,reg_A
-		tst.b	reg_A
-		bpl.b	.no_carry\@
-		subq.w	#6,reg_A
-.no_carry\@:
-		pack	reg_A,reg_A,#0
-		tst.w	reg_A
- 		bpl.b	.no_carry2\@
- 		sub.b	#$60,reg_A
-.no_carry2\@:
-		add.b	C,C
-		subx.b	d0,Z
-		ext.w	N
-		svs		V
-		scc		C
-		bra.b	.skip\@
-
+		pea		(.skip\@,pc)
+		jmp		decimal_sbc
 .binary_sbc\@:
 		subq.b	#1,C
 		subx.b	d0,reg_A
@@ -1156,6 +1109,57 @@ _CPU_JIT_Instance:
 		endm
 
 ; ----------------------------------------------
+
+decimal_adc:
+		unpk	reg_A,d1,#0
+		unpk	d0,Z,#0
+		add.b	C,C
+		addx.w	Z,d1
+		cmp.b	#$0a,d1
+		blo.b	.no_carry
+		add.w	#$0106,d1
+.no_carry:
+		pack	d1,d1,#0
+		move.b	d1,N
+		ext.w	N
+		move.b	reg_A,Z
+		add.b	C,C
+		addx.b	d0,Z
+		eor.b	d0,reg_A
+		not.b	reg_A
+		eor.b	d1,d0
+		and.b	reg_A,d0
+		smi		V
+		move.b	d1,reg_A
+		cmp.w	#$0a00,d1
+		shs		C
+		blo.b	.no_carry2
+		add.b	#$60,reg_A
+.no_carry2:
+		rts
+
+decimal_sbc:
+		move.b	reg_A,Z
+		unpk	reg_A,reg_A,#0
+		unpk	d0,d1,#0
+		not.b	C
+		add.b	C,C
+		subx.w	d1,reg_A
+		tst.b	reg_A
+		bpl.b	.no_carry
+		subq.w	#6,reg_A
+.no_carry:
+		pack	reg_A,reg_A,#0
+		tst.w	reg_A
+ 		bpl.b	.no_carry2
+ 		sub.b	#$60,reg_A
+.no_carry2:
+		add.b	C,C
+		subx.b	d0,Z
+		ext.w	N
+		svs		V
+		scc		C
+		rts
 
 MEMORY_HwGetByte:
 		clr.l	-(sp)							; FALSE (no side effects)
