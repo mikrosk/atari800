@@ -669,6 +669,15 @@ C_FLAG	equ		0
 		dc.b	unknown
 		endm
 
+		macro	UPDATE_PC
+.m68k_bytes:
+		addq.w	#1,reg_PC						; 1 - 3
+		endm
+
+		macro	DONE
+.m68k_end:
+		endm
+
 ; ----------------------------------------------
 
 ; 1 extra cycle for X (or Y) index overflow
@@ -684,24 +693,6 @@ C_FLAG	equ		0
 		bls.b	.no_extra_cycle\@
 		addq.l	#1,xpos
 .no_extra_cycle\@:
-		endm
-
-; ----------------------------------------------
-
-		macro	M68K_BYTES_TEMPLATE
-.m68k_bytes:
-		addq.w	#1,reg_PC						; 1 - 3
-		endm
-
-		macro	M68K_CYCLES_TEMPLATE
-		cmp.l	_ANTIC_xpos_limit,xpos
-		blt.b	.next_insn\@
-		rts
-.next_insn\@:
-		endm
-
-		macro	DONE
-.m68k_end:
 		endm
 
 ; ---------------------------------------------
@@ -820,8 +811,8 @@ _CPU_JIT_Instance:
 		and.b	d0,reg_A
 		move.b	reg_A,Z
 		ext.w	N
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		endm
 
 		macro	CMP6502
@@ -829,8 +820,8 @@ _CPU_JIT_Instance:
 		sub.b	d0,Z
 		scc		C								; C is inverted on the 6502
 		ext.w	N
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		endm
 
 		macro	CPX6502
@@ -838,8 +829,8 @@ _CPU_JIT_Instance:
 		sub.b	d0,Z
 		scc		C
 		ext.w	N
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		endm
 
 		macro	CPY6502
@@ -847,48 +838,48 @@ _CPU_JIT_Instance:
 		sub.b	d0,Z
 		scc		C
 		ext.w	N
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		endm
 
 		macro	EOR6502
 		eor.b	d0,reg_A
 		move.b	reg_A,Z
 		ext.w	N
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		endm
 
 		macro	LDA6502
 		move.b	d0,reg_A
 		move.b	reg_A,Z
 		ext.w	N
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		endm
 
 		macro	LDX6502
 		move.b	d0,reg_X
 		move.b	reg_X,Z
 		ext.w	N
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		endm
 
 		macro	LDY6502
 		move.b	d0,reg_Y
 		move.b	reg_Y,Z
 		ext.w	N
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		endm
 
 		macro	ORA6502
 		or.b	d0,reg_A
 		move.b	reg_A,Z
 		ext.w	N
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		endm
 
 		macro	BIT6502
@@ -897,8 +888,8 @@ _CPU_JIT_Instance:
 		and.b	reg_A,Z
 		and.b	#(1<<V_FLAG),d0
 		move.b	d0,V
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		endm
 
 		macro	ADC6502
@@ -941,8 +932,8 @@ _CPU_JIT_Instance:
 		move.b	reg_A,Z
 		ext.w	N
 .skip\@:
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		endm
 
 		macro	SBC6502
@@ -980,8 +971,8 @@ _CPU_JIT_Instance:
 		move.b	reg_A,Z
 		ext.w	N
 .skip\@:
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		endm
 
 		macro	ROL_ONLY						; src/dst reg
@@ -1097,6 +1088,16 @@ _CPU_JIT_Instance:
 
 		; input:    -
 		; output:   -
+		; clobbers: -
+		macro	RETURN_OR_CONTINUE
+		cmp.l	_ANTIC_xpos_limit,xpos
+		blt.b	.next_insn\@
+		rts
+.next_insn\@:
+		endm
+
+		; input:    -
+		; output:   -
 		; clobbers: d0.l, a0
 		macro	RETURN_OR_JUMP
 		cmp.l	_ANTIC_xpos_limit,xpos
@@ -1115,7 +1116,7 @@ _CPU_JIT_Instance:
 		macro	BRANCH							; flag, <size>, <cc>
 		tst.\2	\1
 		b\3.b	.taken\@
-		M68K_BYTES_TEMPLATE
+		UPDATE_PC
 		bra.b	.return_or_jump\@
 .taken\@:
 .m68k_data:
@@ -1208,22 +1209,22 @@ _JIT_insn_opcode_03: ;ASO (ab,x) [unofficial - ASL then ORA with Acc]
 _JIT_insn_opcode_64: ;NOP ab [unofficial - skip byte]
 		IMPLIED
 		; nothing to do
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_f4: ;NOP ab,x [unofficial - skip byte]
 		IMPLIED
 		; nothing to do
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_e2: ;NOP #ab [unofficial - skip byte]
 		IMPLIED
 		; nothing to do
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_05: ;ORA ab
@@ -1240,8 +1241,8 @@ _JIT_insn_opcode_06: ;ASL ab
 		move.b	d0,d1
 		move.l	(sp)+,d0
 		MEMORY_PutByte
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_07: ;ASO ab [unofficial - ASL then ORA with Acc]
@@ -1250,8 +1251,8 @@ _JIT_insn_opcode_07: ;ASO ab [unofficial - ASL then ORA with Acc]
 _JIT_insn_opcode_08: ;PHP
 		IMPLIED
 		PHPB1
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_09: ;ORA #ab
@@ -1262,8 +1263,8 @@ _JIT_insn_opcode_09: ;ORA #ab
 _JIT_insn_opcode_0a: ;ASL
 		ACCUMULATOR
 		ASL_ONLY reg_A
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_2b: ;ANC #ab [unofficial - AND then copy N to C (Fox)
@@ -1272,8 +1273,8 @@ _JIT_insn_opcode_2b: ;ANC #ab [unofficial - AND then copy N to C (Fox)
 _JIT_insn_opcode_0c: ;NOP abcd [unofficial - skip word]
 		IMPLIED
 		; nothing to do
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_0d: ;ORA abcd
@@ -1290,8 +1291,8 @@ _JIT_insn_opcode_0e: ;ASL abcd
 		move.b	d0,d1
 		move.l	(sp)+,d0
 		MEMORY_PutByte
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_0f: ;ASO abcd [unofficial - ASL then ORA with Acc]
@@ -1325,8 +1326,8 @@ _JIT_insn_opcode_16: ;ASL ab,x
 		move.b	d0,d1
 		move.l	(sp)+,d0
 		MEMORY_PutByte_ZP
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_17: ;ASO ab,x [unofficial - ASL then ORA with Acc]
@@ -1335,8 +1336,8 @@ _JIT_insn_opcode_17: ;ASO ab,x [unofficial - ASL then ORA with Acc]
 _JIT_insn_opcode_18: ;CLC
 		IMPLIED
 		ClrC
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_19: ;ORA abcd,y
@@ -1352,8 +1353,8 @@ _JIT_insn_opcode_1b: ;ASO abcd,y [unofficial - ASL then ORA with Acc]
 _JIT_insn_opcode_fc: ;NOP abcd,x [unofficial - skip word]
 		IMPLIED
 		; nothing to do
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_1d: ;ORA abcd,x
@@ -1371,8 +1372,8 @@ _JIT_insn_opcode_1e: ;ASL abcd,x
 		move.b	d0,d1
 		move.l	(sp)+,d0
 		MEMORY_PutByte
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_1f: ;ASO abcd,x [unofficial - ASL then ORA with Acc]
@@ -1417,8 +1418,8 @@ _JIT_insn_opcode_26: ;ROL ab
 		move.b	d0,d1
 		move.l	(sp)+,d0
 		MEMORY_PutByte_ZP
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_27: ;RLA ab [unofficial - ROL Mem, then AND with A]
@@ -1427,8 +1428,8 @@ _JIT_insn_opcode_27: ;RLA ab [unofficial - ROL Mem, then AND with A]
 _JIT_insn_opcode_28: ;PLP
 		IMPLIED
 		PLP
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		CHECKIRQ
 		DONE
 
@@ -1440,8 +1441,8 @@ _JIT_insn_opcode_29: ;AND #ab
 _JIT_insn_opcode_2a: ;ROL
 		ACCUMULATOR
 		ROL_ONLY reg_A
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_2c: ;BIT abcd
@@ -1464,8 +1465,8 @@ _JIT_insn_opcode_2e: ;ROL abcd
 		move.b	d0,d1
 		move.l	(sp)+,d0
 		MEMORY_PutByte
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_2f: ;RLA abcd [unofficial - ROL Mem, then AND with A]
@@ -1499,8 +1500,8 @@ _JIT_insn_opcode_36: ;ROL ab,x
 		move.b	d0,d1
 		move.l	(sp)+,d0
 		MEMORY_PutByte_ZP
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_37: ;RLA ab,x [unofficial - ROL Mem, then AND with A]
@@ -1509,8 +1510,8 @@ _JIT_insn_opcode_37: ;RLA ab,x [unofficial - ROL Mem, then AND with A]
 _JIT_insn_opcode_38: ;SEC
 		IMPLIED
 		SetC
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_39: ;AND abcd,y
@@ -1538,8 +1539,8 @@ _JIT_insn_opcode_3e: ;ROL abcd,x
 		move.b	d0,d1
 		move.l	(sp)+,d0
 		MEMORY_PutByte
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_3f: ;RLA abcd,x [unofficial - ROL Mem, then AND with A]
@@ -1577,8 +1578,8 @@ _JIT_insn_opcode_46: ;LSR ab
 		move.b	d0,d1
 		move.l	(sp)+,d0
 		MEMORY_PutByte_ZP
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_47: ;LSE ab [unofficial - LSR then EOR result with A]
@@ -1588,8 +1589,8 @@ _JIT_insn_opcode_48: ;PHA
 		IMPLIED
 		move.l	reg_A,d0
 		PH
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_49: ;EOR #ab
@@ -1600,8 +1601,8 @@ _JIT_insn_opcode_49: ;EOR #ab
 _JIT_insn_opcode_4a: ;LSR
 		ACCUMULATOR
 		LSR_ONLY reg_A
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_4b: ;ALR #ab [unofficial - Acc AND Data, LSR result]
@@ -1628,8 +1629,8 @@ _JIT_insn_opcode_4e: ;LSR abcd
 		move.b	d0,d1
 		move.l	(sp)+,d0
 		MEMORY_PutByte
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_4f: ;LSE abcd [unofficial - LSR then EOR result with A]
@@ -1663,8 +1664,8 @@ _JIT_insn_opcode_56: ;LSR ab,x
 		move.b	d0,d1
 		move.l	(sp)+,d0
 		MEMORY_PutByte_ZP
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_57: ;LSE ab,x [unofficial - LSR then EOR result with A]
@@ -1673,8 +1674,8 @@ _JIT_insn_opcode_57: ;LSE ab,x [unofficial - LSR then EOR result with A]
 _JIT_insn_opcode_58: ;CLI
 		IMPLIED
 		ClrI
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		CHECKIRQ
 		DONE
 
@@ -1703,8 +1704,8 @@ _JIT_insn_opcode_5e: ;LSR abcd,x
 		move.b	d0,d1
 		move.l	(sp)+,d0
 		MEMORY_PutByte
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_5f: ;LSE abcd,x [unofficial - LSR then EOR result with A]
@@ -1746,8 +1747,8 @@ _JIT_insn_opcode_66: ;ROR ab
 		move.b	d0,d1
 		move.l	(sp)+,d0
 		MEMORY_PutByte_ZP
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_67: ;RRA ab [unofficial - ROR Mem, then ADC to Acc]
@@ -1759,8 +1760,8 @@ _JIT_insn_opcode_68: ;PLA
 		move.b	d0,reg_A
 		move.b	d0,Z
 		ext.w	N
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_69: ;ADC #ab
@@ -1771,8 +1772,8 @@ _JIT_insn_opcode_69: ;ADC #ab
 _JIT_insn_opcode_6a: ;ROR
 		ACCUMULATOR
 		ROR_ONLY reg_A
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_6b: ;ARR #ab [unofficial - Acc AND Data, ROR result]
@@ -1812,8 +1813,8 @@ _JIT_insn_opcode_6e: ;ROR abcd
 		move.b	d0,d1
 		move.l	(sp)+,d0
 		MEMORY_PutByte
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_6f: ;RRA abcd [unofficial - ROR Mem, then ADC to Acc]
@@ -1847,8 +1848,8 @@ _JIT_insn_opcode_76: ;ROR ab,x
 		move.b	d0,d1
 		move.l	(sp)+,d0
 		MEMORY_PutByte_ZP
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_77: ;RRA ab,x [unofficial - ROR Mem, then ADC to Acc]
@@ -1857,8 +1858,8 @@ _JIT_insn_opcode_77: ;RRA ab,x [unofficial - ROR Mem, then ADC to Acc]
 _JIT_insn_opcode_78: ;SEI
 		IMPLIED
 		SetI
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_79: ;ADC abcd,y
@@ -1886,8 +1887,8 @@ _JIT_insn_opcode_7e: ;ROR abcd,x
 		move.b	d0,d1
 		move.l	(sp)+,d0
 		MEMORY_PutByte
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_7f: ;RRA abcd,x [unofficial - ROR Mem, then ADC to Acc]
@@ -1897,8 +1898,8 @@ _JIT_insn_opcode_81: ;STA (ab,x)
 		INDIRECT_X
 		move.b	reg_A,d1
 		MEMORY_PutByte
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_83: ;SAX (ab,x) [unofficial - Store result A AND X
@@ -1908,24 +1909,24 @@ _JIT_insn_opcode_84: ;STY ab
 		ZPAGE
 		move.b	reg_Y,d1
 		MEMORY_PutByte_ZP
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_85: ;STA ab
 		ZPAGE
 		move.b	reg_A,d1
 		MEMORY_PutByte_ZP
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_86: ;STX ab
 		ZPAGE
 		move.b	reg_X,d1
 		MEMORY_PutByte_ZP
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_87: ;SAX ab [unofficial - Store result A AND X]
@@ -1936,8 +1937,8 @@ _JIT_insn_opcode_88: ;DEY
 		subq.b	#1,reg_Y
 		move.b	reg_Y,Z
 		ext.w	N
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_8a: ;TXA
@@ -1945,8 +1946,8 @@ _JIT_insn_opcode_8a: ;TXA
 		move.b	reg_X,reg_A
 		move.b	reg_A,Z
 		ext.w	N
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_8b: ;ANE #ab [unofficial - A AND X AND (Mem OR $EF) to Acc] (Fox)
@@ -1956,24 +1957,24 @@ _JIT_insn_opcode_8c: ;STY abcd
 		ABSOLUTE
 		move.b	reg_Y,d1
 		MEMORY_PutByte
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_8d: ;STA abcd
 		ABSOLUTE
 		move.b	reg_A,d1
 		MEMORY_PutByte
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_8e: ;STX abcd
 		ABSOLUTE
 		move.b	reg_X,d1
 		MEMORY_PutByte
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_8f: ;SAX abcd [unofficial - Store result A AND X]
@@ -1987,8 +1988,8 @@ _JIT_insn_opcode_91: ;STA (ab),y
 		INDIRECT_Y
 		move.b	reg_A,d1
 		MEMORY_PutByte
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_93: ;SHA (ab),y [unofficial, UNSTABLE - Store A AND X AND (H+1) ?] (Fox)
@@ -1998,24 +1999,24 @@ _JIT_insn_opcode_94: ;STY ab,x
 		ZPAGE_X
 		move.b	reg_Y,d1
 		MEMORY_PutByte_ZP
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_95: ;STA ab,x
 		ZPAGE_X
 		move.b	reg_A,d1
 		MEMORY_PutByte_ZP
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_96: ;STX ab,y
 		ZPAGE_X
 		move.b	reg_X,d1
 		MEMORY_PutByte_ZP
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_97: ;SAX ab,y [unofficial - Store result A AND X]
@@ -2026,23 +2027,23 @@ _JIT_insn_opcode_98: ;TYA
 		move.b	reg_Y,reg_A
 		move.b	reg_A,Z
 		ext.w	N
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_99: ;STA abcd,y
 		ABSOLUTE_Y
 		move.b	reg_A,d1
 		MEMORY_PutByte
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_9a: ;TXS
 		IMPLIED
 		move.b	reg_X,reg_S+1
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_9b: ;SHS abcd,y [unofficial, UNSTABLE] (Fox)
@@ -2055,8 +2056,8 @@ _JIT_insn_opcode_9d: ;STA abcd,x
 		ABSOLUTE_X
 		move.b	reg_A,d1
 		MEMORY_PutByte
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_9e: ;SHX abcd,y [unofficial - Store X and (H+1)] (Fox)
@@ -2110,8 +2111,8 @@ _JIT_insn_opcode_a8: ;TAY
 		move.b	reg_A,reg_Y
 		move.b	reg_Y,Z
 		ext.w	N
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_a9: ;LDA #ab
@@ -2124,8 +2125,8 @@ _JIT_insn_opcode_aa: ;TAX
 		move.b	reg_A,reg_X
 		move.b	reg_X,Z
 		ext.w	N
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_ab: ;ANX #ab [unofficial - AND #ab, then TAX]
@@ -2190,8 +2191,8 @@ _JIT_insn_opcode_b7: ;LAX ab,y [unofficial]
 _JIT_insn_opcode_b8: ;CLV
 		IMPLIED
 		ClrV
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_b9: ;LDA abcd,y
@@ -2206,8 +2207,8 @@ _JIT_insn_opcode_ba: ;TSX
 		move.b	reg_S+1,reg_X
 		move.b	reg_X,Z
 		ext.w	N
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_bb: ;LAS abcd,y [unofficial - AND S with Mem, transfer to A and X (Fox)
@@ -2273,8 +2274,8 @@ _JIT_insn_opcode_c6: ;DEC ab
 		move.b	d0,d1
 		move.l	(sp)+,d0
 		MEMORY_PutByte_ZP
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_c7: ;DCM ab [unofficial - DEC Mem then CMP with Acc]
@@ -2285,8 +2286,8 @@ _JIT_insn_opcode_c8: ;INY
 		addq.b	#1,reg_Y
 		move.b	reg_Y,Z
 		ext.w	N
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_c9: ;CMP #ab
@@ -2299,8 +2300,8 @@ _JIT_insn_opcode_ca: ;DEX
 		subq.b	#1,reg_X
 		move.b	reg_X,Z
 		ext.w	N
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_cb: ;SBX #ab [unofficial - store ((A AND X) - Mem) in X] (Fox)
@@ -2328,8 +2329,8 @@ _JIT_insn_opcode_ce: ;DEC abcd
 		move.b	d0,d1
 		move.l	(sp)+,d0
 		MEMORY_PutByte
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_cf: ;DCM abcd [unofficial - DEC Mem then CMP with Acc]
@@ -2365,8 +2366,8 @@ _JIT_insn_opcode_d6: ;DEC ab,x
 		move.b	d0,d1
 		move.l	(sp)+,d0
 		MEMORY_PutByte_ZP
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_d7: ;DCM ab,x [unofficial - DEC Mem then CMP with Acc]
@@ -2375,8 +2376,8 @@ _JIT_insn_opcode_d7: ;DCM ab,x [unofficial - DEC Mem then CMP with Acc]
 _JIT_insn_opcode_d8: ;CLD
 		IMPLIED
 		ClrD
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_d9: ;CMP abcd,y
@@ -2406,8 +2407,8 @@ _JIT_insn_opcode_de: ;DEC abcd,x
 		move.b	d0,d1
 		move.l	(sp)+,d0
 		MEMORY_PutByte
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_df: ;DCM abcd,x [unofficial - DEC Mem then CMP with Acc]
@@ -2449,8 +2450,8 @@ _JIT_insn_opcode_e6: ;INC ab
 		move.b	d0,d1
 		move.l	(sp)+,d0
 		MEMORY_PutByte_ZP
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_e7: ;INS ab [unofficial - INC Mem then SBC with Acc]
@@ -2461,8 +2462,8 @@ _JIT_insn_opcode_e8: ;INX
 		addq.b	#1,reg_X
 		move.b	reg_X,Z
 		ext.w	N
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_eb: ;SBC #ab [unofficial]; e9 official
@@ -2473,8 +2474,8 @@ _JIT_insn_opcode_eb: ;SBC #ab [unofficial]; e9 official
 _JIT_insn_opcode_fa: ;NOP [unofficial]; ea official
 		IMPLIED
 		; nothing to do
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_ec: ;CPX abcd
@@ -2499,8 +2500,8 @@ _JIT_insn_opcode_ee: ;INC abcd
 		move.b	d0,d1
 		move.l	(sp)+,d0
 		MEMORY_PutByte
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_ef: ;INS abcd [unofficial - INC Mem then SBC with Acc]
@@ -2536,8 +2537,8 @@ _JIT_insn_opcode_f6: ;INC ab,x
 		move.b	d0,d1
 		move.l	(sp)+,d0
 		MEMORY_PutByte_ZP
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_f7: ;INS ab,x [unofficial - INC Mem then SBC with Acc]
@@ -2546,8 +2547,8 @@ _JIT_insn_opcode_f7: ;INS ab,x [unofficial - INC Mem then SBC with Acc]
 _JIT_insn_opcode_f8: ;SED
 		IMPLIED
 		SetD
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_f9: ;SBC abcd,y
@@ -2577,8 +2578,8 @@ _JIT_insn_opcode_fe: ;INC abcd,x
 		move.b	d0,d1
 		move.l	(sp)+,d0
 		MEMORY_PutByte
-		M68K_BYTES_TEMPLATE
-		M68K_CYCLES_TEMPLATE
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_ff: ;INS abcd,x [unofficial - INC Mem then SBC with Acc]
