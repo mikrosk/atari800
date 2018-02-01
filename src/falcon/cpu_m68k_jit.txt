@@ -849,28 +849,33 @@ $D800 - $FFFF (14 KB RAM or OS ROM)
 
 acc:	- (priamo instrukciu dodat)
 imp:	- (priamo instrukciu dodat)
-imm:	podla operacie (and, or, add, ...) dodat byte operand (velkost word aj tak...)
-abs:	($abcd-$8000.w,memory)
-rel:	($abcd-$8000.w,memory) ... je tam ale taken/not taken (xpos: not taken, taken, taken over page)
-zp:		($00ab-$8000.w,memory)
+imm:	<insn>.b #imm,reg_[AXY]
+abs:	<insn.b> ($abcd-$8000.w,memory),reg_[AXY] alebo jmp/jsr ale tam to zrejme bude aj tak move
+rel:	tst.l ($abcd-$8000.w,memory_jit) + jmp ($abcd-$8000.w,memory) ... je tam ale taken/not taken (xpos: not taken, taken, taken over page)
+zp:		<insn.b> ($00ab-$8000.w,memory),reg_[AXY]
 abs,x:	($abcd-$8000.w,memory,reg_X.w) ... tu potrebujem aj tak checknut overflow (xpos: +1 if over page)
 abs,y:	($abcd-$8000.w,memory,reg_Y.w) ... detto
-x,ind:	($00ab-$8000.w,memory,reg_X.w) + vytiahnut word z tej adresy a ten pouzit (asi ee, ab+reg_X je byte operacia)
-ind,y:	($00ab-$8000.w,memory) + vytiahnut word z tej adresy + pripocitat Y ... plus check overflow (xpos: +1 if over page)
-ind		($abcd-$8000.w,memory) + vytiahnut word z tej adresy (plus check na ten bug)
-zp,x:	($00ab-$8000.w,memory,reg_X.w) teoreticky OK, ale nesmie to pretiec ab+reg_x je byte operacia
-zp,y:	($00ab-$8000.w,memory,reg_Y.w) teoreticky OK, ale nesmie to pretiec ab+reg_y je byte operacia
+x,ind:	move.w #$abcd-$8000,d0; add.b reg_x,d0; move.w (0.b,memory,d0.w),d0; ror.w #8,d0
+ind,y:	move.w ($00ab-$8000.w,memory),d0; ror; add.w reg_y,d0; move.b (-$8000,memory,d0.w) ... plus check overflow (xpos: +1 if over page)
+ind		move.w ($abcd-$8000.w,memory) + ror + jump (plus check na ten bug v JIT)
+zp,x:	move.w #$abcd-$8000,d0; add.b reg_x,d0, <insn>.b (0.b,memory,d0.w)
+zp,y:	move.w #$abcd-$8000,d0; add.b reg_y,d0, <insn>.b (0.b,memory,d0.w)
+
+nezabudnut, ze tie <ea> mozu byt aj opacne (LDA vs STA...)
++1 na overflow sa nedeje pri STA!
 
 - zmena move.b d0,d1 na makra, ktore beru d1
 - v MEMORY_StateRead() musim tiez pomazat vsetko, co suvisi s JIT pamatou
 - v MEMORY_InitialiseMachine() musim pomazat vsetko tiez
+- zistit, preco sa obcas WSYNC counter lisi... (ten kod je na adrese $f057)
 
 JIT ideas:
 - pozriet format instrukcii a priamo and/or.w #operand, napr. pri imm robime move.b #imm,d0; and.b d0,d2...
 - takmer vzdy viem urcit, ci dana adresa je HW alebo RAM vopred
 - nenechat tam chudaka pocitat, ci JMP prekracuje hranicu a blbosti, to moze urobit aj JIT
 - spravit si dve verzie generovaneho kodu - s porovnavanim cyklov a bez; ak je cely blok kratsi ako limit -> no problem!
-- rozsirenie predosleho bodu: generovat bloky LEN podla 'limit' -- proste skoncime, spytame sa na limit uz v C kode, pokracovat? (lebo len branch) ano/nie; tym padom ale blok potrebuje mat aj limit ID
+- rozsirenie predosleho bodu: generovat bloky LEN podla 'limit' -- tu je ale problem, ze nevieme moc spolahlivo robit slucky: napriklad mame limit 114 a blok trva 90, super. ale to je len jedna iteracia a mi nevieme, kolko iteracii treba. aj keby som pri vetveni pozeral stav pocitadla, ja neviem potom skoncit v strede slucky. to uz skor to predosle riesenie, ze ak viem, ze do limitu tam nie je ziadna slucka, tak pouzit ten blok, ale bojim sa, ze takto sa naalokuje spusta blokov a vetvenie je celkom caste
+- odvaznejsi kod, napriklad pre skoky -- prelozit rovno, ako som robil, ale poznacit si zavislosti (najzaujimavejsie sa javi rovno cele $d301), cize ked zmenim d301, vsetky bloky, ktore zavisia na danom rozsahu sa zrusia (napr ROM/RAM, RAM/extRAM a vynimocne aj HW/ne-HW)... zrejme by to fungovalo tak, ze pri kompilovani by sa pozeralo, ci sa meni rozsah a ak ano, tak JIT kompilator (!) by prepol dany rozsah sam (a potom zase naspat pri skonceni kompilacie).
 - SED/CLD by sposobilo return a zrejme z nejakej tabulky vycitalo, ktore bloky ma pregenerovat, aby bin/dec adc/sub malo len jednu rutinu (mozno blbost, chcelo by to vidiet v praxi na par desiatkach programov; urcite ako ifdef)
 - switch, ci podporovat smc kod
 - interkacia medzi sucasnou a nasledujucou instrukciou: ak JIT vie, ze and meni N/Z a nasledne add meni N/Z (ktore nema ako vstup N/Z), tak mozeme vygenerovat len jedno ukladanie flagov! cize kazda instrukcia by asi musela mat tri verzie: bez nastavovania Z/C, bez nastavovania C a bez nastavovania V (tu by to mohlo byt specialne zaujimave -- milion ADC/SBC a ak nakoniec V nikoho nezaujima, tak ho nastavime az niekde nakonci pri rts...) ... mno, viac ako tri verzie, 8 verzii, ale nie je to take zle, lebo:
@@ -878,4 +883,3 @@ JIT ideas:
   C - nastavuje ASL, LSR, ROR, ROL, ADC, SBC; vstup pre ROL, ROR, ADC, SBC, BCC, BCS
   D - nastavuje CLD, SED; vstup pre ADC, SBC
   Cize hlavne Z/N a C, ADC/SBC bude klasicky najhorsia :)
-- podobna optimalizacia: ak vieme, ze blok konci na Bcc a v danom bloku nic dane 'cc' nemeni, tak nemusime robit podmieneny skok (uzitocne hlavne ak ten skok bude not taken, mozeme pokracovat ak mame uz blok vygenerovany -- co by opat mohol zabezpecit JIT)

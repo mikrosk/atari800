@@ -17,7 +17,8 @@ struct CPU_JIT_insn_template_t {
 	UBYTE addressing_mode;
 	UWORD data_offset;
 	UWORD bytes_offset;
-	UWORD cycles_offset;
+	UWORD cycles_offset1;
+	UWORD cycles_offset2;
 	UWORD native_code_size;
 	UBYTE *native_code;
 };

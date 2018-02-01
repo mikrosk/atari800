@@ -42,7 +42,7 @@
 #include "util.h"
 
 extern void CPU_JIT_Instance(UBYTE *dst_buf, const struct CPU_JIT_insn_template_t *src_template,
-                             const UWORD data, const int bytes, const int cycles);
+                             const UWORD data, const int bytes, const int cycles, const int cycles_extra);
 extern void CPU_JIT_Execute(const UBYTE *pCode);
 
 static const struct CPU_JIT_insn_template_t* const JIT_compiler_insn_table[256] = {
@@ -239,6 +239,22 @@ static struct CPU_JIT_native_code_t *find_code(const UWORD pc)
 
 	return &MEMORY_JIT_mem[pc];
 }
+static void patch_code(const UWORD addr, const struct CPU_JIT_insn_template_t *const insn_template,
+					   UWORD *pData, UBYTE *pCycles, UBYTE *pCycles_extra)
+{
+	UWORD data = *pData;
+	UBYTE cycles = *pCycles;
+	UBYTE cycles_extra = *pCycles_extra;
+
+	if (insn_template->addressing_mode == Relative) {
+		data = addr + ((UWORD) ((SBYTE) data)) + 2;
+		cycles_extra = ((addr ^ data) & 0xff00) ? 2 : 1;
+	}
+
+	*pData = data;
+	*pCycles = cycles;
+	*pCycles_extra = cycles_extra;
+}
 static struct CPU_JIT_native_code_t *compile_code(const UWORD pc) {
 	UBYTE stop = FALSE;
 	UWORD addr = pc;
@@ -285,6 +301,7 @@ static struct CPU_JIT_native_code_t *compile_code(const UWORD pc) {
 		UBYTE insn;
 		UBYTE bytes;
 		UBYTE cycles;
+		UBYTE cycles_extra = 0;
 		UWORD data = 0;
 		const struct CPU_JIT_insn_template_t *insn_template;
 		struct CPU_JIT_native_code_t *native_code;
@@ -312,10 +329,6 @@ static struct CPU_JIT_native_code_t *compile_code(const UWORD pc) {
 				native_code->insn_info->data_type = Data_Type_OpLo;
 
 				data = MEMORY_mem[addr+1];
-				if (insn_template->addressing_mode == Relative) {
-					/* special case: bcc */
-					data = addr + ((UWORD) ((SBYTE) data)) + 2;
-				}
 			} else if (bytes == 3) {
 				native_code++;
 				native_code->insn_addr = code;
@@ -341,7 +354,8 @@ static struct CPU_JIT_native_code_t *compile_code(const UWORD pc) {
 			data = addr;
 		}
 
-		CPU_JIT_Instance(code, insn_template, data, bytes, cycles);
+		patch_code(addr, insn_template, &data, &cycles, &cycles_extra);
+		CPU_JIT_Instance(code, insn_template, data, bytes, cycles, cycles_extra);
 
 		code += insn_template->native_code_size;
 		addr += bytes;
@@ -483,7 +497,7 @@ int CPU_JIT_Invalidate(const UWORD addr)
 		} else {
 			/* NOTE: this assumes that native "return from subroutine" will never take more space than already allocated */
 			assert(JIT_insn_opcode_60.is_stop != 0xff);
-			CPU_JIT_Instance(native_code->insn_addr, &JIT_insn_opcode_60, 0, 0, 0);
+			CPU_JIT_Instance(native_code->insn_addr, &JIT_insn_opcode_60, 0, 0, 0, 0);
 		}
 
 		size = JIT_compiler_bytes_table[MEMORY_mem[addr]];
@@ -535,7 +549,7 @@ void CPU_JIT_InvalidateAllocatedCode(struct CPU_JIT_native_code_t *native_code, 
 			} else {
 				/* NOTE: this assumes that native "return from subroutine" will never take more space than already allocated */
 				assert(JIT_insn_opcode_60.is_stop != 0xff);
-				CPU_JIT_Instance(native_code[i].insn_addr, &JIT_insn_opcode_60, 0, 0, 0);
+				CPU_JIT_Instance(native_code[i].insn_addr, &JIT_insn_opcode_60, 0, 0, 0, 0);
 			}
 		}
 

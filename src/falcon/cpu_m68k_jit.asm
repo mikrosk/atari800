@@ -449,6 +449,7 @@ C_FLAG	equ		0
 		dc.w	-1
 		dc.w	.m68k_bytes-.m68k_start
 		dc.w	.m68k_cycles-.m68k_start
+		dc.w	-1
 		dc.w	.m68k_end-.m68k_start
 		endm
 
@@ -456,6 +457,7 @@ C_FLAG	equ		0
 		dc.w	-1
 		dc.w	-1
 		dc.w	.m68k_cycles-.m68k_start
+		dc.w	-1
 		dc.w	.m68k_end-.m68k_start
 		endm
 
@@ -463,6 +465,15 @@ C_FLAG	equ		0
 		dc.w	.m68k_data-.m68k_start+\1
 		dc.w	.m68k_bytes-.m68k_start
 		dc.w	.m68k_cycles-.m68k_start
+		dc.w	-1
+		dc.w	.m68k_end-.m68k_start
+		endm
+
+		macro	OFFSET_WITH_BYTES_AND_CYCLES_EXTRA ; offset
+		dc.w	.m68k_data-.m68k_start+\1
+		dc.w	.m68k_bytes-.m68k_start
+		dc.w	.m68k_cycles-.m68k_start
+		dc.w	.m68k_cycles_extra-.m68k_start
 		dc.w	.m68k_end-.m68k_start
 		endm
 
@@ -470,6 +481,7 @@ C_FLAG	equ		0
 		dc.w	.m68k_data-.m68k_start+\1
 		dc.w	-1
 		dc.w	.m68k_cycles-.m68k_start
+		dc.w	-1
 		dc.w	.m68k_end-.m68k_start
 		endm
 
@@ -619,7 +631,7 @@ C_FLAG	equ		0
 		macro	RELATIVE
 		dc.b	is_stop
 		dc.b	relative
-		OFFSET_WITH_BYTES_AND_CYCLES 4
+		OFFSET_WITH_BYTES_AND_CYCLES_EXTRA 4
 .m68k_start:
 		DUMP
 .m68k_cycles:
@@ -742,14 +754,16 @@ _CPU_JIT_Execute:
 		rts
 
 ; void CPU_JIT_Instance(UBYTE* dst_buf, const struct CPU_JIT_insn_template_t *src_template,
-;                       const UWORD data, const int bytes, const int cycles);
+;                       const UWORD data, const int bytes, const int cycles, const int cycles_extra);
 		rsreset
-insn_template_is_stop: 		rs.w	1
-insn_template_data_offset:	rs.w	1
-insn_template_bytes_offset:	rs.w	1
-insn_template_cycles_offset:rs.w	1
-insn_template_code_size:	rs.w	1
-insn_template_code:			rs.b	0
+insn_template_is_stop: 			rs.b	1
+insn_template_addressing_mode:	rs.b	1
+insn_template_data_offset:		rs.w	1
+insn_template_bytes_offset:		rs.w	1
+insn_template_cycles_offset1:	rs.w	1
+insn_template_cycles_offset2:	rs.w	1
+insn_template_code_size:		rs.w	1
+insn_template_code:				rs.b	0
 
 _CPU_JIT_Instance:
 		movea.l	(8,sp),a0						; a0: insn template
@@ -775,11 +789,16 @@ _CPU_JIT_Instance:
 		move.l	(16,sp),d1						; d1.l: bytes
 		move.w	(addql_pc_table.l,pc,d1.l*2),(0.b,a1,d0.w*1)
 .no_bytes:
-		move.w	(insn_template_cycles_offset,a0),d0
-		bmi.b	.no_cycles
+		move.w	(insn_template_cycles_offset1,a0),d0
+		bmi.b	.no_cycles1
 		move.l	(20,sp),d1						; d1.l: cycles
 		move.w	(addql_xpos_table.l,pc,d1.l*2),(0.b,a1,d0.w*1)
-.no_cycles:
+.no_cycles1:
+		move.w	(insn_template_cycles_offset2,a0),d0
+		bmi.b	.no_cycles2
+		move.l	(24,sp),d1						; d1.l: cycles_extra
+		move.w	(addql_xpos_table.l,pc,d1.l*2),(0.b,a1,d0.w*1)
+.no_cycles2:
 		movem.l	d2/a2,-(sp)
 		pea		.clear_cache
 		move.w	#38,-(sp)
@@ -1053,15 +1072,7 @@ _CPU_JIT_Instance:
 		; output:   -
 		; clobbers: d0.l, a0
 		macro	RETURN_OR_JUMP
-		cmp.l	_ANTIC_xpos_limit,xpos
-		bge.b	.return\@
-		move.l	(0.b,memory_jit,reg_PC.l*8),d0	; UBYTE *insn_addr
-		beq.b	.return\@
-		movea.l	d0,a0
-		jmp		(a0)
-		; not reached...
-.return\@:
-		rts
+		jmp		return_or_jump
 		endm
 
 		; TODO: we know what is the value of the PC and the jump destination
@@ -1070,19 +1081,13 @@ _CPU_JIT_Instance:
 		tst.\2	\1
 		b\3.b	.taken\@
 		UPDATE_PC
-		bra.b	.return_or_jump\@
+		RETURN_OR_JUMP
 .taken\@:
 .m68k_data:
 		move.l	#$0000abcd,d0
-		move.w	reg_PC,d1
-		eor.w	d0,d1
-		lsr.w	#8,d1
-		beq.b	.same_page\@
-		addq.l	#1,xpos
-.same_page\@:
 		move.l	d0,reg_PC
-		addq.l	#1,xpos
-.return_or_jump\@:
+.m68k_cycles_extra:
+		addq.l	#1,xpos							; 1 - 2
 		RETURN_OR_JUMP
 		DONE
 		endm
@@ -1109,6 +1114,17 @@ _CPU_JIT_Instance:
 		endm
 
 ; ----------------------------------------------
+
+return_or_jump:
+		cmp.l	_ANTIC_xpos_limit,xpos
+		bge.b	.return
+		move.l	(0.b,memory_jit,reg_PC.l*8),d0	; UBYTE *insn_addr
+		beq.b	.return
+		movea.l	d0,a0
+		jmp		(a0)
+		; not reached...
+.return:
+		rts
 
 decimal_adc:
 		unpk	reg_A,d1,#0
