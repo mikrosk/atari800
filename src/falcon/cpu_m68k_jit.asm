@@ -921,7 +921,7 @@ _CPU_JIT_Instance:
 		add.b	C,C
 		addx.b	d0,reg_A
 		svs		V
-		scs		C
+		subx.b	C,C
 		move.b	reg_A,Z
 		ext.w	N
 .skip\@:
@@ -950,7 +950,7 @@ _CPU_JIT_Instance:
 		macro	ROL_ONLY						; src/dst reg
 		add.b	C,C
 		addx.b	\1,\1
-		scs		C
+		subx.b	C,C
 		move.b	\1,Z
 		ext.w	N
 		endm
@@ -958,21 +958,21 @@ _CPU_JIT_Instance:
 		macro	ROR_ONLY						; src/dst reg
 		add.b	C,C
 		roxr.b	#1,\1
-		scs		C
+		subx.b	C,C
 		move.b	\1,Z
 		ext.w	N
 		endm
 
 		macro	ASL_ONLY						; src/dst reg
 		add.b	\1,\1
-		scs		C
+		subx.b	C,C
 		move.b	\1,Z
 		ext.w	N
 		endm
 
 		macro	LSR_ONLY						; src/dst reg
 		lsr.b	#1,\1
-		scs		C
+		subx.b	C,C
 		move.b	\1,Z
 		clr.w	N								; always positive
 		endm
