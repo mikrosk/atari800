@@ -368,20 +368,20 @@ C_FLAG	equ		0
 ; ----------------------------------------------
 
 		macro	MEMORY_dGetByte					; d0.l: addr
-		move.b	(0.b,memory,d0.l*1),d0
+		move.b	(-$8000.w,memory,d0.l*1),d0
 		endm
 
 		macro	MEMORY_dGetWord					; d0.l: addr
-		move.w	(0.b,memory,d0.l*1),d0
+		move.w	(-$8000.w,memory,d0.l*1),d0
 		ror.w	#8,d0
 		endm
 
 		macro	MEMORY_dPutByte					; d0.l: addr, d1.b: value
-		move.b	d1,(0.b,memory,d0.l*1)
+		move.b	d1,(-$8000.w,memory,d0.l*1)
 		endm
 
 		macro	MEMORY_GetByte					; d0.l: addr
-		cmpi.b	#MEMORY_HARDWARE,(0.b,mem_attrib,d0.l*1)
+		cmpi.b	#MEMORY_HARDWARE,(-$8000.w,mem_attrib,d0.l*1)
 		bne.b	.no_hardware\@
 		pea		(.skip\@,pc)
 		jmp		MEMORY_HwGetByte
@@ -391,7 +391,7 @@ C_FLAG	equ		0
 		endm
 
 		macro	MEMORY_PutByte_ZP				; d0.l: addr, d1.b: value
-		tst.l	(0.b,memory_jit,d0.l*8)			; UBYTE *insn_addr
+		tst.l	(-$8000.w,memory_jit,d0.l*8)	; UBYTE *insn_addr
 		beq.b	.no_code\@
 		pea		(.no_code\@,pc)
 		jmp		JIT_Invalidate
@@ -400,14 +400,14 @@ C_FLAG	equ		0
 		endm
 
 		macro	MEMORY_PutByte					; d0.l: addr, d1.b: value
-		cmpi.b	#MEMORY_RAM,(0.b,mem_attrib,d0.l*1)
+		cmpi.b	#MEMORY_RAM,(-$8000.w,mem_attrib,d0.l*1)
 		beq.b	.no_hardware\@
-		cmpi.b	#MEMORY_HARDWARE,(0.b,mem_attrib,d0.l*1)
+		cmpi.b	#MEMORY_HARDWARE,(-$8000.w,mem_attrib,d0.l*1)
 		bne.b	.skip\@
 		pea		(.skip\@,pc)
 		jmp		MEMORY_HwPutByte
 .no_hardware\@:
-		tst.l	(0.b,memory_jit,d0.l*8)			; UBYTE *insn_addr
+		tst.l	(-$8000.w,memory_jit,d0.l*8)	; UBYTE *insn_addr
 		beq.b	.no_code\@
 		pea		(.no_code\@,pc)
 		jmp		JIT_Invalidate
@@ -417,7 +417,7 @@ C_FLAG	equ		0
 		endm
 
 		macro	RMW_GetByte						; d0.l: addr
-		cmpi.b	#MEMORY_HARDWARE,(0.b,mem_attrib,d0.l*1)
+		cmpi.b	#MEMORY_HARDWARE,(-$8000.w,mem_attrib,d0.l*1)
 		bne.b	.no_hardware\@
 		move.l	d0,-(sp)
 		pea		(.check_rmw\@,pc)
@@ -731,9 +731,9 @@ _CPU_JIT_Execute:
 		PutStatus d0
 		and.b	#%00111100,_CPU_regP			; NV*BDIZC -> 00*BDI00
 
-		lea		_MEMORY_mem,memory
-		lea		_MEMORY_attrib,mem_attrib
-		lea		_MEMORY_JIT_mem,memory_jit
+		lea		_MEMORY_mem+$8000,memory
+		lea		_MEMORY_attrib+$8000,mem_attrib
+		lea		_MEMORY_JIT_mem+$8000,memory_jit
 		move.l	_ANTIC_xpos,xpos
 
 		jsr		(a0)
@@ -1118,7 +1118,7 @@ _CPU_JIT_Instance:
 return_or_jump:
 		cmp.l	_ANTIC_xpos_limit,xpos
 		bge.b	.return
-		move.l	(0.b,memory_jit,reg_PC.l*8),d0	; UBYTE *insn_addr
+		move.l	(-$8000.w,memory_jit,reg_PC.l*8),d0	; UBYTE *insn_addr
 		beq.b	.return
 		movea.l	d0,a0
 		jmp		(a0)
