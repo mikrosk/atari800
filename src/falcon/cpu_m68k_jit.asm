@@ -517,7 +517,7 @@ C_FLAG	equ		0
 .m68k_cycles:
 		addq.l	#1,xpos							; 2 - 8
 .m68k_data:
-		move.l	#$0000abcd,d0
+		move.l	#$00000000,d0
 		endm
 
 		macro	ABSOLUTE_JUMP
@@ -539,7 +539,7 @@ C_FLAG	equ		0
 .m68k_cycles:
 		addq.l	#1,xpos							; 2 - 8
 .m68k_data:
-		move.l	#$0000abcd,d0
+		move.l	#$00000000,d0
 		add.w	reg_X,d0
 		endm
 
@@ -552,7 +552,7 @@ C_FLAG	equ		0
 .m68k_cycles:
 		addq.l	#1,xpos							; 2 - 8
 .m68k_data:
-		move.l	#$0000abcd,d0
+		move.l	#$00000000,d0
 		add.w	reg_Y,d0
 		endm
 
@@ -565,7 +565,7 @@ C_FLAG	equ		0
 .m68k_cycles:
 		addq.l	#1,xpos							; 2 - 8
 .m68k_data:
-		move.l	#$000000ab,d0
+		move.l	#$00000000,d0
 		endm
 
 		macro	IMPLIED
@@ -609,7 +609,7 @@ C_FLAG	equ		0
 .m68k_cycles:
 		addq.l	#1,xpos							; 2 - 8
 .m68k_data:
-		move.l	#$000000ab,d0
+		move.l	#$00000000,d0
 		add.b	reg_X,d0
 		MEMORY_dGetWord
 		endm
@@ -623,7 +623,7 @@ C_FLAG	equ		0
 .m68k_cycles:
 		addq.l	#1,xpos							; 2 - 8
 .m68k_data:
-		move.l	#$000000ab,d0
+		move.l	#$00000000,d0
 		MEMORY_dGetWord
 		add.w	reg_Y,d0
 		endm
@@ -647,7 +647,7 @@ C_FLAG	equ		0
 .m68k_cycles:
 		addq.l	#1,xpos							; 2 - 8
 .m68k_data:
-		move.l	#$000000ab,d0
+		move.l	#$00000000,d0
 		endm
 
 		macro	ZPAGE_X
@@ -659,7 +659,7 @@ C_FLAG	equ		0
 .m68k_cycles:
 		addq.l	#1,xpos							; 2 - 8
 .m68k_data:
-		move.l	#$000000ab,d0
+		move.l	#$00000000,d0
 		add.b	reg_X,d0
 		endm
 
@@ -672,7 +672,7 @@ C_FLAG	equ		0
 .m68k_cycles:
 		addq.l	#1,xpos							; 2 - 8
 .m68k_data:
-		move.l	#$000000ab,d0
+		move.l	#$00000000,d0
 		add.b	reg_Y,d0
 		endm
 
@@ -782,7 +782,7 @@ _CPU_JIT_Instance:
 		move.w	(insn_template_data_offset,a0),d0
 		bmi.b	.no_data
 		move.l	(12,sp),d1						; d1.w: data
-		move.w	d1,(0.b,a1,d0.w*1)
+		or.w	d1,(0.b,a1,d0.w*1)
 .no_data:
 		move.w	(insn_template_bytes_offset,a0),d0
 		bmi.b	.no_bytes
@@ -1084,7 +1084,7 @@ _CPU_JIT_Instance:
 		RETURN_OR_JUMP
 .taken\@:
 .m68k_data:
-		move.l	#$0000abcd,d0
+		move.l	#$00000000,d0
 		move.l	d0,reg_PC
 .m68k_cycles_extra:
 		addq.l	#1,xpos							; 1 - 2
@@ -1097,11 +1097,11 @@ _CPU_JIT_Instance:
 		; clobbers: d0.w, d1.b, a0
 		macro	CHECKIRQ
 		tst.b	_CPU_IRQ
-		beq.b	.skip\@
+		beq		.skip\@
 		btst	#I_FLAG,_CPU_regP
 		bne		.skip\@
 		cmp.l	_ANTIC_xpos_limit,xpos
-		bge.b	.skip\@
+		bge		.skip\@
 		PHPC
 		PHPB0
 		SetI
@@ -1405,7 +1405,7 @@ _JIT_insn_opcode_20: ;JSR abcd
 		addq.w	#1+1,d0									; store PC one byte before next insn
 		PHW
 .m68k_data:
-		move.l	#$0000abcd,reg_PC
+		move.l	#$00000000,reg_PC
 		RETURN_OR_JUMP
 		DONE
 
@@ -1631,7 +1631,7 @@ _JIT_insn_opcode_4b: ;ALR #ab [unofficial - Acc AND Data, LSR result]
 _JIT_insn_opcode_4c: ;JMP abcd
 		ABSOLUTE_JUMP
 .m68k_data:
-		move.l	#$0000abcd,reg_PC
+		move.l	#$00000000,reg_PC
 		RETURN_OR_JUMP
 		DONE
 
@@ -1802,7 +1802,7 @@ _JIT_insn_opcode_6b: ;ARR #ab [unofficial - Acc AND Data, ROR result]
 _JIT_insn_opcode_6c: ;JMP (abcd)
 		INDIRECT
 .m68k_data:
-		move.l	#$0000abcd,d0
+		move.l	#$00000000,d0
 		cmp.b	#$ff,d0
 		bne.b	.no_bug
 		move.l	d0,d1
