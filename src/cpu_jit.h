@@ -15,7 +15,8 @@ struct CPU_JIT_native_code_t {
 struct CPU_JIT_insn_template_t {
 	UBYTE is_stop;
 	UBYTE addressing_mode;
-	UWORD data_offset;
+	UWORD data_offset1;
+	UWORD data_offset2;
 	UWORD bytes_offset;
 	UWORD cycles_offset1;
 	UWORD cycles_offset2;

@@ -500,6 +500,7 @@ C_FLAG	equ		0
 
 		macro	NO_OFFSET_WITH_BYTES_AND_CYCLES
 		dc.w	-1
+		dc.w	-1
 		dc.w	.m68k_bytes-.m68k_start
 		dc.w	.m68k_cycles-.m68k_start
 		dc.w	-1
@@ -509,6 +510,7 @@ C_FLAG	equ		0
 		macro	NO_OFFSET_WITH_CYCLES
 		dc.w	-1
 		dc.w	-1
+		dc.w	-1
 		dc.w	.m68k_cycles-.m68k_start
 		dc.w	-1
 		dc.w	.m68k_end-.m68k_start
@@ -516,6 +518,7 @@ C_FLAG	equ		0
 
 		macro	OFFSET_WITH_BYTES_AND_CYCLES	; offset
 		dc.w	.m68k_data-.m68k_start+\1
+		dc.w	-1
 		dc.w	.m68k_bytes-.m68k_start
 		dc.w	.m68k_cycles-.m68k_start
 		dc.w	-1
@@ -524,6 +527,7 @@ C_FLAG	equ		0
 
 		macro	OFFSET_WITH_BYTES_AND_CYCLES_EXTRA ; offset
 		dc.w	.m68k_data-.m68k_start+\1
+		dc.w	-1
 		dc.w	.m68k_bytes-.m68k_start
 		dc.w	.m68k_cycles-.m68k_start
 		dc.w	.m68k_cycles_extra-.m68k_start
@@ -532,6 +536,7 @@ C_FLAG	equ		0
 
 		macro	OFFSET_WITH_CYCLES				; offset
 		dc.w	.m68k_data-.m68k_start+\1
+		dc.w	-1
 		dc.w	-1
 		dc.w	.m68k_cycles-.m68k_start
 		dc.w	-1
@@ -805,11 +810,14 @@ _CPU_JIT_Execute:
 		rts
 
 ; void CPU_JIT_Instance(UBYTE* dst_buf, const struct CPU_JIT_insn_template_t *src_template,
-;                       const UWORD data, const int bytes, const int cycles, const int cycles_extra);
+;                       const UWORD data, const UWORD data_extra,
+;                       const int bytes,
+;                       const int cycles, const int cycles_extra);
 		rsreset
 insn_template_is_stop: 			rs.b	1
 insn_template_addressing_mode:	rs.b	1
-insn_template_data_offset:		rs.w	1
+insn_template_data_offset1:		rs.w	1
+insn_template_data_offset2:		rs.w	1
 insn_template_bytes_offset:		rs.w	1
 insn_template_cycles_offset1:	rs.w	1
 insn_template_cycles_offset2:	rs.w	1
@@ -830,24 +838,29 @@ _CPU_JIT_Instance:
 		movea.l	(8,sp),a0						; a0: insn template
 		movea.l	(4,sp),a1						; a1: dst buffer
 
-		move.w	(insn_template_data_offset,a0),d0
-		bmi.b	.no_data
+		move.w	(insn_template_data_offset1,a0),d0
+		bmi.b	.no_data1
 		move.l	(12,sp),d1						; d1.w: data
 		or.w	d1,(0.b,a1,d0.w*1)
-.no_data:
+.no_data1:
+		move.w	(insn_template_data_offset2,a0),d0
+		bmi.b	.no_data2
+		move.l	(16,sp),d1						; d1.w: data_extra
+		or.w	d1,(0.b,a1,d0.w*1)
+.no_data2:
 		move.w	(insn_template_bytes_offset,a0),d0
 		bmi.b	.no_bytes
-		move.l	(16,sp),d1						; d1.l: bytes
+		move.l	(20,sp),d1						; d1.l: bytes
 		move.w	(addql_pc_table.l,pc,d1.l*2),(0.b,a1,d0.w*1)
 .no_bytes:
 		move.w	(insn_template_cycles_offset1,a0),d0
 		bmi.b	.no_cycles1
-		move.l	(20,sp),d1						; d1.l: cycles
+		move.l	(24,sp),d1						; d1.l: cycles
 		move.w	(addql_xpos_table.l,pc,d1.l*2),(0.b,a1,d0.w*1)
 .no_cycles1:
 		move.w	(insn_template_cycles_offset2,a0),d0
 		bmi.b	.no_cycles2
-		move.l	(24,sp),d1						; d1.l: cycles_extra
+		move.l	(28,sp),d1						; d1.l: cycles_extra
 		move.w	(addql_xpos_table.l,pc,d1.l*2),(0.b,a1,d0.w*1)
 .no_cycles2:
 		movem.l	d2/a2,-(sp)
