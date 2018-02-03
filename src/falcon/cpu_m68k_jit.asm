@@ -19,7 +19,10 @@
 ; along with Atari800; if not, write to the Free Software
 ; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
-		opt		a-								; don't automatically optimize absolute to PC-relative references
+		opt		a-,o4-,o12-,og-					; don't automatically optimize absolute to PC-relative references
+												; don't optimize move.l to moveq
+												; don't optimize <op>.l #x,An to <op>.w #x,An.
+												; disable generic vasm optimizations
 
 		xref	_ANTIC_xpos
 		xref	_ANTIC_xpos_limit
@@ -288,9 +291,8 @@ zero_page_y	equ	12
 reg_A	equr	d2								; .b
 reg_X	equr	d3								; .b
 reg_Y	equr	d4								; .b
-N		equr	d5								; .w (< 0   => N flag set)
+reg_CCR	equr	d5								; .w (only CCR_N & CCR_Z)
 V		equr	d6								; .b (<> 0  => V flag set)
-Z		equr	d5								; .b (== 0  => Z flag set)
 C		equr	d7								; .b (< 0   => C flag set)
 
 memory	equr	a2								; .l
@@ -305,6 +307,9 @@ xpos	equr	a6								; .l, ANTIC_xpos mirror
 ; CCR      : ***XNZVC
 ; CPU_regP : NV*BDIZC
 
+CCR_N	equ		3
+CCR_Z	equ		2
+
 N_FLAG	equ		7
 V_FLAG	equ		6
 B_FLAG	equ		4
@@ -313,34 +318,36 @@ I_FLAG	equ		2
 Z_FLAG	equ		1
 C_FLAG	equ		0
 
-		macro	GetStatus						; src.b: 00*BDI00
-.n\@:	tst.w	N
-		bpl.b	.v\@
+		macro	GetStatus
+		move.b	_CPU_regP,\1					; \1.b: 00*BDI00
+		move	reg_CCR,ccr
+.n\@:	bpl.b	.z\@
 		;bset	#N_FLAG,\1
 		ori.b	#(1<<N_FLAG),\1
-.v\@:	tst.b	V
-		beq.b	.z\@
-		;bset	#V_FLAG,\1
-		ori.b	#(1<<V_FLAG),\1
-.z\@:	tst.b	Z
-		bne.b	.c\@
+.z\@:	move	reg_CCR,ccr						; comment out to ignore N=1 Z=1 (possible by BIT and PLP)
+		bne.b	.v\@
 		;bset	#Z_FLAG,\1
 		addq.b	#(1<<Z_FLAG),\1
+.v\@:	tst.b	V
+		beq.b	.c\@
+		;bset	#V_FLAG,\1
+		ori.b	#(1<<V_FLAG),\1
 .c\@:	tst.b	C
 		beq.b	.done\@
 		;bset	#C_FLAG,\1
 		addq.b	#(1<<C_FLAG),\1
-.done\@:
+.done\@:										; \1.b:   NV*BDIZC
 		endm
 
-		macro	PutStatus						; src.b: NV*BDIZC
-		move.b	\1,N
-		ext.w	N
-		add.b	N,N								; dn.b: [N]V*BDIZC0
+		macro	PutStatus						; \1.b:    NV*BDIZC
+		move.b	\1,C							; dC.b:    NV*BDIZC
+		add.b	C,C								; dC.b: [N]V*BDIZC0
 		smi		V
-		lsl.b	#6,N							; dn.b: [Z]C0000000
-		scc		Z								; if Z, then dz = 0 else dz = ff
+		subx.b	reg_CCR,reg_CCR					; dc.b:    NNNNNNNN
+		lsl.b	#6,C							; dC.b: [Z]C0000000
 		smi		C
+		addx.b	reg_CCR,reg_CCR					; dc.b:    NNNNNNNZ
+		lsl.b	#2,reg_CCR						; dc.b:    NNNNNZ00
 		endm
 
 		macro	ClrV
@@ -363,6 +370,52 @@ C_FLAG	equ		0
 		endm
 		macro	ClrC
 		clr.b	C
+		endm
+
+		macro	SAVE_NZ
+		move	ccr,reg_CCR
+		endm
+
+		macro	SAVE_NZC
+		move	ccr,reg_CCR
+		subx.b	C,C
+		endm
+
+		macro	SAVE_NZc
+		move	ccr,reg_CCR
+		scc		C								; inverted C
+		endm
+
+		macro	SAVE_NVZC
+		move	ccr,reg_CCR
+		svs		V
+		subx.b	C,C
+		endm
+
+		macro	SAVE_NVZc
+		move	ccr,reg_CCR
+		svs		V
+		scc		C								; inverted C
+		endm
+
+		macro	LOAD_C
+		add.b	C,C
+		endm
+
+		macro	LOAD_c
+		subq.b	#1,C							; inverted C
+		endm
+
+		macro	TEST_NZ
+		move	reg_CCR,ccr
+		endm
+
+		macro	TEST_V
+		tst.b	V
+		endm
+
+		macro	TEST_C
+		tst.b	C
 		endm
 
 ; ----------------------------------------------
@@ -727,8 +780,7 @@ _CPU_JIT_Execute:
 		move.b	_CPU_regY,reg_Y
 		move.b	_CPU_regS,reg_S+1
 
-		move.b	_CPU_regP,d0
-		PutStatus d0
+		PutStatus _CPU_regP
 		and.b	#%00111100,_CPU_regP			; NV*BDIZC -> 00*BDI00
 
 		lea		_MEMORY_mem+$8000,memory
@@ -740,7 +792,6 @@ _CPU_JIT_Execute:
 
 		move.l	xpos,_ANTIC_xpos
 
-		move.b	_CPU_regP,d0
 		GetStatus d0
 		move.b	d0,_CPU_regP
 
@@ -828,85 +879,74 @@ _CPU_JIT_Instance:
 
 		macro	AND6502
 		and.b	d0,reg_A
-		move.b	reg_A,Z
-		ext.w	N
+		SAVE_NZ
 		UPDATE_PC
 		RETURN_OR_CONTINUE
 		endm
 
 		macro	CMP6502
-		move.b	reg_A,Z
-		sub.b	d0,Z
-		scc		C								; C is inverted on the 6502
-		ext.w	N
+		cmp.b	d0,reg_A
+		SAVE_NZc
 		UPDATE_PC
 		RETURN_OR_CONTINUE
 		endm
 
 		macro	CPX6502
-		move.b	reg_X,Z
-		sub.b	d0,Z
-		scc		C
-		ext.w	N
+		cmp.b	d0,reg_X
+		SAVE_NZc
 		UPDATE_PC
 		RETURN_OR_CONTINUE
 		endm
 
 		macro	CPY6502
-		move.b	reg_Y,Z
-		sub.b	d0,Z
-		scc		C
-		ext.w	N
+		cmp.b	d0,reg_Y
+		SAVE_NZc
 		UPDATE_PC
 		RETURN_OR_CONTINUE
 		endm
 
 		macro	EOR6502
 		eor.b	d0,reg_A
-		move.b	reg_A,Z
-		ext.w	N
+		SAVE_NZ
 		UPDATE_PC
 		RETURN_OR_CONTINUE
 		endm
 
 		macro	LDA6502
 		move.b	d0,reg_A
-		move.b	reg_A,Z
-		ext.w	N
+		SAVE_NZ
 		UPDATE_PC
 		RETURN_OR_CONTINUE
 		endm
 
 		macro	LDX6502
 		move.b	d0,reg_X
-		move.b	reg_X,Z
-		ext.w	N
+		SAVE_NZ
 		UPDATE_PC
 		RETURN_OR_CONTINUE
 		endm
 
 		macro	LDY6502
 		move.b	d0,reg_Y
-		move.b	reg_Y,Z
-		ext.w	N
+		SAVE_NZ
 		UPDATE_PC
 		RETURN_OR_CONTINUE
 		endm
 
 		macro	ORA6502
 		or.b	d0,reg_A
-		move.b	reg_A,Z
-		ext.w	N
+		SAVE_NZ
 		UPDATE_PC
 		RETURN_OR_CONTINUE
 		endm
 
 		macro	BIT6502
-		move.b	d0,Z
-		ext.w	N
-		and.b	reg_A,Z
-		and.b	#(1<<V_FLAG),d0
 		move.b	d0,V
+		move	ccr,reg_CCR						; save N
+		and.b	reg_A,V
+		bne.b	.ne\@
+		or.b	#(1<<CCR_Z),reg_CCR				; save Z
+.ne\@:	and.b	#(1<<V_FLAG),V
 		UPDATE_PC
 		RETURN_OR_CONTINUE
 		endm
@@ -918,12 +958,9 @@ _CPU_JIT_Instance:
 		pea		(.skip\@,pc)
 		jmp		decimal_adc
 .binary_adc\@:
-		add.b	C,C
+		LOAD_C
 		addx.b	d0,reg_A
-		svs		V
-		subx.b	C,C
-		move.b	reg_A,Z
-		ext.w	N
+		SAVE_NVZC
 .skip\@:
 		UPDATE_PC
 		RETURN_OR_CONTINUE
@@ -936,45 +973,34 @@ _CPU_JIT_Instance:
 		pea		(.skip\@,pc)
 		jmp		decimal_sbc
 .binary_sbc\@:
-		subq.b	#1,C
+		LOAD_c
 		subx.b	d0,reg_A
-		svs		V
-		scc		C
-		move.b	reg_A,Z
-		ext.w	N
+		SAVE_NVZc
 .skip\@:
 		UPDATE_PC
 		RETURN_OR_CONTINUE
 		endm
 
 		macro	ROL_ONLY						; src/dst reg
-		add.b	C,C
+		LOAD_C
 		addx.b	\1,\1
-		subx.b	C,C
-		move.b	\1,Z
-		ext.w	N
+		SAVE_NZC
 		endm
 
 		macro	ROR_ONLY						; src/dst reg
-		add.b	C,C
+		LOAD_C
 		roxr.b	#1,\1
-		subx.b	C,C
-		move.b	\1,Z
-		ext.w	N
+		SAVE_NZC
 		endm
 
 		macro	ASL_ONLY						; src/dst reg
 		add.b	\1,\1
-		subx.b	C,C
-		move.b	\1,Z
-		ext.w	N
+		SAVE_NZC
 		endm
 
 		macro	LSR_ONLY						; src/dst reg
 		lsr.b	#1,\1
-		subx.b	C,C
-		move.b	\1,Z
-		clr.w	N								; always positive
+		SAVE_NZC
 		endm
 
 		; input:    (clean d0.l)
@@ -1022,7 +1048,6 @@ _CPU_JIT_Instance:
 		; output:   -
 		; clobbers: d0.w, d1.b
 		macro	PHPB0
-		move.b	_CPU_regP,d0
 		GetStatus d0
 		;         NV*BDIZC
 		and.b	#%11101111,d0
@@ -1033,7 +1058,6 @@ _CPU_JIT_Instance:
 		; output:   -
 		; clobbers: d0.w, d1.b
 		macro	PHPB1
-		move.b	_CPU_regP,d0
 		GetStatus d0
 		PH										; push flags with B flag set (PHP, BRK)
 		endm
@@ -1077,9 +1101,8 @@ _CPU_JIT_Instance:
 
 		; TODO: we know what is the value of the PC and the jump destination
 ;       so why not calculate it in advance?
-		macro	BRANCH							; flag, <size>, <cc>
-		tst.\2	\1
-		b\3.b	.taken\@
+		macro	BRANCH							; <cc>
+		b\1.b	.taken\@
 		UPDATE_PC
 		RETURN_OR_JUMP
 .taken\@:
@@ -1128,38 +1151,41 @@ return_or_jump:
 
 decimal_adc:
 		unpk	reg_A,d1,#0
-		unpk	d0,Z,#0
-		add.b	C,C
-		addx.w	Z,d1
+		unpk	d0,V,#0
+		LOAD_C
+		addx.w	V,d1
 		cmp.b	#$0a,d1
 		blo.b	.no_carry
 		add.w	#$0106,d1
 .no_carry:
 		pack	d1,d1,#0
-		move.b	d1,N
-		ext.w	N
-		move.b	reg_A,Z
-		add.b	C,C
-		addx.b	d0,Z
+		tst.b	d1
+		move	ccr,reg_CCR						; save N
+		and.w	#(1<<CCR_N),reg_CCR				;
+		move.b	reg_A,V
+		LOAD_C
+		addx.b	d0,V
+		move	ccr,V
+		or.w	V,reg_CCR						; save Z
 		eor.b	d0,reg_A
 		not.b	reg_A
 		eor.b	d1,d0
 		and.b	reg_A,d0
-		smi		V
+		smi		V								; save V
 		move.b	d1,reg_A
 		cmp.w	#$0a00,d1
-		shs		C
+		shs		C								; save C
 		blo.b	.no_carry2
 		add.b	#$60,reg_A
 .no_carry2:
 		rts
 
 decimal_sbc:
-		move.b	reg_A,Z
+		move.b	reg_A,V
 		unpk	reg_A,reg_A,#0
 		unpk	d0,d1,#0
 		not.b	C
-		add.b	C,C
+		LOAD_C
 		subx.w	d1,reg_A
 		tst.b	reg_A
 		bpl.b	.no_carry
@@ -1170,11 +1196,9 @@ decimal_sbc:
  		bpl.b	.no_carry2
  		sub.b	#$60,reg_A
 .no_carry2:
-		add.b	C,C
-		subx.b	d0,Z
-		ext.w	N
-		svs		V
-		scc		C
+		LOAD_C
+		subx.b	d0,V
+		SAVE_NVZc
 		rts
 
 MEMORY_HwGetByte:
@@ -1320,7 +1344,8 @@ _JIT_insn_opcode_0f: ;ASO abcd [unofficial - ASL then ORA with Acc]
 
 _JIT_insn_opcode_10: ;BPL
 		RELATIVE
-		BRANCH N,w,pl
+		TEST_NZ
+		BRANCH	pl
 
 _JIT_insn_opcode_11: ;ORA (ab),y
 		INDIRECT_Y
@@ -1494,7 +1519,8 @@ _JIT_insn_opcode_2f: ;RLA abcd [unofficial - ROL Mem, then AND with A]
 
 _JIT_insn_opcode_30: ;BMI
 		RELATIVE
-		BRANCH N,w,mi
+		TEST_NZ
+		BRANCH	mi
 
 _JIT_insn_opcode_31: ;AND (ab),y
 		INDIRECT_Y
@@ -1658,7 +1684,8 @@ _JIT_insn_opcode_4f: ;LSE abcd [unofficial - LSR then EOR result with A]
 
 _JIT_insn_opcode_50: ;BVC
 		RELATIVE
-		BRANCH V,b,eq
+		TEST_V
+		BRANCH	eq
 
 _JIT_insn_opcode_51: ;EOR (ab),y
 		INDIRECT_Y
@@ -1778,8 +1805,7 @@ _JIT_insn_opcode_68: ;PLA
 		IMPLIED
 		PL
 		move.b	d0,reg_A
-		move.b	d0,Z
-		ext.w	N
+		SAVE_NZ
 		UPDATE_PC
 		RETURN_OR_CONTINUE
 		DONE
@@ -1842,7 +1868,8 @@ _JIT_insn_opcode_6f: ;RRA abcd [unofficial - ROR Mem, then ADC to Acc]
 
 _JIT_insn_opcode_70: ;BVS
 		RELATIVE
-		BRANCH V,b,ne
+		TEST_V
+		BRANCH	ne
 
 _JIT_insn_opcode_71: ;ADC (ab),y
 		INDIRECT_Y
@@ -1955,8 +1982,7 @@ _JIT_insn_opcode_87: ;SAX ab [unofficial - Store result A AND X]
 _JIT_insn_opcode_88: ;DEY
 		IMPLIED
 		subq.b	#1,reg_Y
-		move.b	reg_Y,Z
-		ext.w	N
+		SAVE_NZ
 		UPDATE_PC
 		RETURN_OR_CONTINUE
 		DONE
@@ -1964,8 +1990,7 @@ _JIT_insn_opcode_88: ;DEY
 _JIT_insn_opcode_8a: ;TXA
 		IMPLIED
 		move.b	reg_X,reg_A
-		move.b	reg_A,Z
-		ext.w	N
+		SAVE_NZ
 		UPDATE_PC
 		RETURN_OR_CONTINUE
 		DONE
@@ -2002,7 +2027,8 @@ _JIT_insn_opcode_8f: ;SAX abcd [unofficial - Store result A AND X]
 
 _JIT_insn_opcode_90: ;BCC
 		RELATIVE
-		BRANCH C,b,eq
+		TEST_C
+		BRANCH	eq
 
 _JIT_insn_opcode_91: ;STA (ab),y
 		INDIRECT_Y
@@ -2045,8 +2071,7 @@ _JIT_insn_opcode_97: ;SAX ab,y [unofficial - Store result A AND X]
 _JIT_insn_opcode_98: ;TYA
 		IMPLIED
 		move.b	reg_Y,reg_A
-		move.b	reg_A,Z
-		ext.w	N
+		SAVE_NZ
 		UPDATE_PC
 		RETURN_OR_CONTINUE
 		DONE
@@ -2129,8 +2154,7 @@ _JIT_insn_opcode_a7: ;LAX ab [unofficial]
 _JIT_insn_opcode_a8: ;TAY
 		IMPLIED
 		move.b	reg_A,reg_Y
-		move.b	reg_Y,Z
-		ext.w	N
+		SAVE_NZ
 		UPDATE_PC
 		RETURN_OR_CONTINUE
 		DONE
@@ -2143,8 +2167,7 @@ _JIT_insn_opcode_a9: ;LDA #ab
 _JIT_insn_opcode_aa: ;TAX
 		IMPLIED
 		move.b	reg_A,reg_X
-		move.b	reg_X,Z
-		ext.w	N
+		SAVE_NZ
 		UPDATE_PC
 		RETURN_OR_CONTINUE
 		DONE
@@ -2175,7 +2198,8 @@ _JIT_insn_opcode_af: ;LAX abcd [unofficial]
 
 _JIT_insn_opcode_b0: ;BCS
 		RELATIVE
-		BRANCH C,b,ne
+		TEST_C
+		BRANCH	ne
 
 _JIT_insn_opcode_b1: ;LDA (ab),y
 		INDIRECT_Y
@@ -2225,8 +2249,7 @@ _JIT_insn_opcode_b9: ;LDA abcd,y
 _JIT_insn_opcode_ba: ;TSX
 		IMPLIED
 		move.b	reg_S+1,reg_X
-		move.b	reg_X,Z
-		ext.w	N
+		SAVE_NZ
 		UPDATE_PC
 		RETURN_OR_CONTINUE
 		DONE
@@ -2289,8 +2312,7 @@ _JIT_insn_opcode_c6: ;DEC ab
 		move.l	d0,-(sp)
 		MEMORY_dGetByte
 		subq.b	#1,d0
-		move.b	d0,Z
-		ext.w	N
+		SAVE_NZ
 		move.b	d0,d1
 		move.l	(sp)+,d0
 		MEMORY_PutByte_ZP
@@ -2304,8 +2326,7 @@ _JIT_insn_opcode_c7: ;DCM ab [unofficial - DEC Mem then CMP with Acc]
 _JIT_insn_opcode_c8: ;INY
 		IMPLIED
 		addq.b	#1,reg_Y
-		move.b	reg_Y,Z
-		ext.w	N
+		SAVE_NZ
 		UPDATE_PC
 		RETURN_OR_CONTINUE
 		DONE
@@ -2318,8 +2339,7 @@ _JIT_insn_opcode_c9: ;CMP #ab
 _JIT_insn_opcode_ca: ;DEX
 		IMPLIED
 		subq.b	#1,reg_X
-		move.b	reg_X,Z
-		ext.w	N
+		SAVE_NZ
 		UPDATE_PC
 		RETURN_OR_CONTINUE
 		DONE
@@ -2344,8 +2364,7 @@ _JIT_insn_opcode_ce: ;DEC abcd
 		move.l	d0,-(sp)
 		RMW_GetByte
 		subq.b	#1,d0
-		move.b	d0,Z
-		ext.w	N
+		SAVE_NZ
 		move.b	d0,d1
 		move.l	(sp)+,d0
 		MEMORY_PutByte
@@ -2358,7 +2377,8 @@ _JIT_insn_opcode_cf: ;DCM abcd [unofficial - DEC Mem then CMP with Acc]
 
 _JIT_insn_opcode_d0: ;BNE
 		RELATIVE
-		BRANCH Z,b,ne
+		TEST_NZ
+		BRANCH	ne
 
 _JIT_insn_opcode_d1: ;CMP (ab),y
 		INDIRECT_Y
@@ -2381,8 +2401,7 @@ _JIT_insn_opcode_d6: ;DEC ab,x
 		move.l	d0,-(sp)
 		MEMORY_dGetByte
 		subq.b	#1,d0
-		move.b	d0,Z
-		ext.w	N
+		SAVE_NZ
 		move.b	d0,d1
 		move.l	(sp)+,d0
 		MEMORY_PutByte_ZP
@@ -2422,8 +2441,7 @@ _JIT_insn_opcode_de: ;DEC abcd,x
 		move.l	d0,-(sp)
 		RMW_GetByte
 		subq.b	#1,d0
-		move.b	d0,Z
-		ext.w	N
+		SAVE_NZ
 		move.b	d0,d1
 		move.l	(sp)+,d0
 		MEMORY_PutByte
@@ -2465,8 +2483,7 @@ _JIT_insn_opcode_e6: ;INC ab
 		move.l	d0,-(sp)
 		MEMORY_dGetByte
 		addq.b	#1,d0
-		move.b	d0,Z
-		ext.w	N
+		SAVE_NZ
 		move.b	d0,d1
 		move.l	(sp)+,d0
 		MEMORY_PutByte_ZP
@@ -2480,8 +2497,7 @@ _JIT_insn_opcode_e7: ;INS ab [unofficial - INC Mem then SBC with Acc]
 _JIT_insn_opcode_e8: ;INX
 		IMPLIED
 		addq.b	#1,reg_X
-		move.b	reg_X,Z
-		ext.w	N
+		SAVE_NZ
 		UPDATE_PC
 		RETURN_OR_CONTINUE
 		DONE
@@ -2515,8 +2531,7 @@ _JIT_insn_opcode_ee: ;INC abcd
 		move.l	d0,-(sp)
 		RMW_GetByte
 		addq.b	#1,d0
-		move.b	d0,Z
-		ext.w	N
+		SAVE_NZ
 		move.b	d0,d1
 		move.l	(sp)+,d0
 		MEMORY_PutByte
@@ -2529,7 +2544,8 @@ _JIT_insn_opcode_ef: ;INS abcd [unofficial - INC Mem then SBC with Acc]
 
 _JIT_insn_opcode_f0: ;BEQ
 		RELATIVE
-		BRANCH Z,b,eq
+		TEST_NZ
+		BRANCH	eq
 
 _JIT_insn_opcode_f1: ;SBC (ab),y
 		INDIRECT_Y
@@ -2552,8 +2568,7 @@ _JIT_insn_opcode_f6: ;INC ab,x
 		move.l	d0,-(sp)
 		MEMORY_dGetByte
 		addq.b	#1,d0
-		move.b	d0,Z
-		ext.w	N
+		SAVE_NZ
 		move.b	d0,d1
 		move.l	(sp)+,d0
 		MEMORY_PutByte_ZP
@@ -2593,8 +2608,7 @@ _JIT_insn_opcode_fe: ;INC abcd,x
 		move.l	d0,-(sp)
 		RMW_GetByte
 		addq.b	#1,d0
-		move.b	d0,Z
-		ext.w	N
+		SAVE_NZ
 		move.b	d0,d1
 		move.l	(sp)+,d0
 		MEMORY_PutByte
