@@ -43,8 +43,8 @@
 
 extern void CPU_JIT_Instance(UBYTE *dst_buf, const struct CPU_JIT_insn_template_t *src_template,
                              const UWORD data, const UWORD data_extra,
-							 const int bytes,
-							 const int cycles, const int cycles_extra);
+                             const int bytes,
+                             const int cycles, const int cycles_extra);
 extern void CPU_JIT_Execute(const UBYTE *pCode);
 
 static const struct CPU_JIT_insn_template_t* const JIT_compiler_insn_table[256] = {
@@ -249,9 +249,31 @@ static void patch_code(const UWORD addr, const struct CPU_JIT_insn_template_t *c
 	UBYTE cycles = *pCycles;
 	UBYTE cycles_extra = *pCycles_extra;
 
-	if (insn_template->addressing_mode == Relative) {
-		data = addr + ((UWORD) ((SBYTE) data)) + 2;
-		cycles_extra = ((addr ^ data) & 0xff00) ? 2 : 1;
+	switch (insn_template->addressing_mode) {
+		case Relative:
+			data = addr + ((UWORD) ((SBYTE) data)) + 2;
+			cycles_extra = ((addr ^ data) & 0xff00) ? 2 : 1;
+			break;
+
+		case Absolute:
+		case Absolute_X:
+		case Absolute_Y:
+		case Indirect:
+		case X_Indirect:
+		case Indirecty_Y:
+			break;
+		case ZeroPage:
+			data -= 0x8000;
+			data_extra = data;
+			break;
+		case ZeroPage_X:
+		case ZeroPage_Y:
+			break;
+
+		case Accumulator:
+		case Immediate:
+		case Implied:
+			break;
 	}
 
 	*pData = data;

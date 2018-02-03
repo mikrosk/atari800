@@ -534,6 +534,15 @@ C_FLAG	equ		0
 		dc.w	.m68k_end-.m68k_start
 		endm
 
+		macro	OFFSET_WITH_DATA_EXTRA_AND_BYTES_AND_CYCLES ; offset
+		dc.w	.m68k_data-.m68k_start+\1
+		dc.w	.m68k_data_extra-.m68k_start+\1
+		dc.w	.m68k_bytes-.m68k_start
+		dc.w	.m68k_cycles-.m68k_start
+		dc.w	-1
+		dc.w	.m68k_end-.m68k_start
+		endm
+
 		macro	OFFSET_WITH_CYCLES				; offset
 		dc.w	.m68k_data-.m68k_start+\1
 		dc.w	-1
@@ -699,13 +708,21 @@ C_FLAG	equ		0
 		macro	ZPAGE
 		dc.b	no_stop
 		dc.b	zero_page
-		OFFSET_WITH_BYTES_AND_CYCLES 4
+		OFFSET_WITH_BYTES_AND_CYCLES 2
 .m68k_start:
 		DUMP
 .m68k_cycles:
 		addq.l	#1,xpos							; 2 - 8
-.m68k_data:
-		move.l	#$00000000,d0
+		endm
+
+		macro	ZPAGE_RMW
+		dc.b	no_stop
+		dc.b	zero_page
+		OFFSET_WITH_DATA_EXTRA_AND_BYTES_AND_CYCLES 2
+.m68k_start:
+		DUMP
+.m68k_cycles:
+		addq.l	#1,xpos							; 2 - 8
 		endm
 
 		macro	ZPAGE_X
@@ -1286,18 +1303,20 @@ _JIT_insn_opcode_e2: ;NOP #ab [unofficial - skip byte]
 
 _JIT_insn_opcode_05: ;ORA ab
 		ZPAGE
-		MEMORY_dGetByte
-		ORA6502
+.m68k_data:
+		or.b	($0000.w,memory),reg_A
+		SAVE_NZ
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_06: ;ASL ab
-		ZPAGE
-		move.l	d0,-(sp)
-		MEMORY_dGetByte
+		ZPAGE_RMW
+.m68k_data:
+		move.b	($0000.w,memory),d0
 		ASL_ONLY d0
-		move.b	d0,d1
-		move.l	(sp)+,d0
-		MEMORY_PutByte
+.m68k_data_extra:
+		move.b	d0,($0000.w,memory)
 		UPDATE_PC
 		RETURN_OR_CONTINUE
 		DONE
@@ -1458,24 +1477,34 @@ _JIT_insn_opcode_23: ;RLA (ab,x) [unofficial - ROL Mem, then AND with A]
 
 _JIT_insn_opcode_24: ;BIT ab
 		ZPAGE
-		MEMORY_dGetByte
-		BIT6502
+.m68k_data:
+		move.b	($0000.w,memory),V
+		move	ccr,reg_CCR						; save N
+		and.b	reg_A,V
+		bne.b	.ne
+		or.b	#(1<<CCR_Z),reg_CCR				; save Z
+.ne:	and.b	#(1<<V_FLAG),V
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_25: ;AND ab
 		ZPAGE
-		MEMORY_dGetByte
-		AND6502
+.m68k_data:
+		and.b	($0000.w,memory),reg_A
+		SAVE_NZ
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_26: ;ROL ab
-		ZPAGE
-		move.l	d0,-(sp)
-		MEMORY_dGetByte
+		ZPAGE_RMW
+		LOAD_C
+.m68k_data:
+		move.b	($0000.w,memory),d0
 		ROL_ONLY d0
-		move.b	d0,d1
-		move.l	(sp)+,d0
-		MEMORY_PutByte_ZP
+.m68k_data_extra:
+		move.b	d0,($0000.w,memory)
 		UPDATE_PC
 		RETURN_OR_CONTINUE
 		DONE
@@ -1625,18 +1654,18 @@ _JIT_insn_opcode_43: ;LSE (ab,x) [unofficial - LSR then EOR result with A]
 
 _JIT_insn_opcode_45: ;EOR ab
 		ZPAGE
-		MEMORY_dGetByte
+.m68k_data:
+		move.b	($0000.w,memory),d0
 		EOR6502
 		DONE
 
 _JIT_insn_opcode_46: ;LSR ab
-		ZPAGE
-		move.l	d0,-(sp)
-		MEMORY_dGetByte
+		ZPAGE_RMW
+.m68k_data:
+		move.b	($0000.w,memory),d0
 		LSR_ONLY d0
-		move.b	d0,d1
-		move.l	(sp)+,d0
-		MEMORY_PutByte_ZP
+.m68k_data_extra:
+		move.b	d0,($0000.w,memory)
 		UPDATE_PC
 		RETURN_OR_CONTINUE
 		DONE
@@ -1795,18 +1824,19 @@ _JIT_insn_opcode_63: ;RRA (ab,x) [unofficial - ROR Mem, then ADC to Acc]
 
 _JIT_insn_opcode_65: ;ADC ab
 		ZPAGE
-		MEMORY_dGetByte
+.m68k_data:
+		move.b	($0000.w,memory),d0				; TODO: replace at least binary version
 		ADC6502
 		DONE
 
 _JIT_insn_opcode_66: ;ROR ab
-		ZPAGE
-		move.l	d0,-(sp)
-		MEMORY_dGetByte
+		ZPAGE_RMW
+		LOAD_C
+.m68k_data:
+		move.b	($0000.w,memory),d0
 		ROR_ONLY d0
-		move.b	d0,d1
-		move.l	(sp)+,d0
-		MEMORY_PutByte_ZP
+.m68k_data_extra:
+		move.b	d0,($0000.w,memory)
 		UPDATE_PC
 		RETURN_OR_CONTINUE
 		DONE
@@ -1967,24 +1997,24 @@ _JIT_insn_opcode_83: ;SAX (ab,x) [unofficial - Store result A AND X
 
 _JIT_insn_opcode_84: ;STY ab
 		ZPAGE
-		move.b	reg_Y,d1
-		MEMORY_PutByte_ZP
+.m68k_data:
+		move.b	reg_Y,($0000.w,memory)
 		UPDATE_PC
 		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_85: ;STA ab
 		ZPAGE
-		move.b	reg_A,d1
-		MEMORY_PutByte_ZP
+.m68k_data:
+		move.b	reg_A,($0000.w,memory)
 		UPDATE_PC
 		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_86: ;STX ab
 		ZPAGE
-		move.b	reg_X,d1
-		MEMORY_PutByte_ZP
+.m68k_data:
+		move.b	reg_X,($0000.w,memory)
 		UPDATE_PC
 		RETURN_OR_CONTINUE
 		DONE
@@ -2145,20 +2175,29 @@ _JIT_insn_opcode_a3: ;LAX (ab,x) [unofficial]
 
 _JIT_insn_opcode_a4: ;LDY ab
 		ZPAGE
-		MEMORY_dGetByte
-		LDY6502
+.m68k_data:
+		move.b	($0000.w,memory),reg_Y
+		SAVE_NZ
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_a5: ;LDA ab
 		ZPAGE
-		MEMORY_dGetByte
-		LDA6502
+.m68k_data:
+		move.b	($0000.w,memory),reg_A
+		SAVE_NZ
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_a6: ;LDX ab
 		ZPAGE
-		MEMORY_dGetByte
-		LDX6502
+.m68k_data:
+		move.b	($0000.w,memory),reg_X
+		SAVE_NZ
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_a7: ;LAX ab [unofficial]
@@ -2310,25 +2349,27 @@ _JIT_insn_opcode_c3: ;DCM (ab,x) [unofficial - DEC Mem then CMP with Acc]
 
 _JIT_insn_opcode_c4: ;CPY ab
 		ZPAGE
-		MEMORY_dGetByte
-		CPY6502
+.m68k_data:
+		cmp.b	($0000.w,memory),reg_Y
+		SAVE_NZc
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_c5: ;CMP ab
 		ZPAGE
-		MEMORY_dGetByte
-		CMP6502
+.m68k_data:
+		cmp.b	($0000.w,memory),reg_A
+		SAVE_NZc
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_c6: ;DEC ab
 		ZPAGE
-		move.l	d0,-(sp)
-		MEMORY_dGetByte
-		subq.b	#1,d0
+.m68k_data:
+		subq.b	#1,($0000.w,memory)
 		SAVE_NZ
-		move.b	d0,d1
-		move.l	(sp)+,d0
-		MEMORY_PutByte_ZP
 		UPDATE_PC
 		RETURN_OR_CONTINUE
 		DONE
@@ -2481,25 +2522,25 @@ _JIT_insn_opcode_e3: ;INS (ab,x) [unofficial - INC Mem then SBC with Acc]
 
 _JIT_insn_opcode_e4: ;CPX ab
 		ZPAGE
-		MEMORY_dGetByte
-		CPX6502
+.m68k_data:
+		cmp.b	($0000.w,memory),reg_X
+		SAVE_NZc
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		DONE
 
 _JIT_insn_opcode_e5: ;SBC ab
 		ZPAGE
-		MEMORY_dGetByte
+.m68k_data:
+		move.b	($0000.w,memory),d0				; TODO: replace at least binary version
 		SBC6502
 		DONE
 
 _JIT_insn_opcode_e6: ;INC ab
 		ZPAGE
-		move.l	d0,-(sp)
-		MEMORY_dGetByte
-		addq.b	#1,d0
+.m68k_data:
+		addq.b	#1,($0000.w,memory)
 		SAVE_NZ
-		move.b	d0,d1
-		move.l	(sp)+,d0
-		MEMORY_PutByte_ZP
 		UPDATE_PC
 		RETURN_OR_CONTINUE
 		DONE
@@ -2670,3 +2711,5 @@ reg_S:	dc.w	$0100
 
 _host_cpu:
 		ds.l	1								; 30 = 68030, 40 = 68040, 60 = 68060
+reg_ccr:
+		ds.w	1
