@@ -846,72 +846,6 @@ $C000 - $D000 (4 KB RAM or OS ROM)
 $D000 - $D800 (hardware)
 $D800 - $FFFF (14 KB RAM or OS ROM)
 
-; treba sa rozhodnut, ci bude reg_PC brany ako signed (-$8000) alebo ee
-- jsr/rts/jmp $(abcd), nmi+irq/rti+brk by sa museli manualne upravovat (sub.w #-$8000)
-- jmp, bcc by vedeli skakat priamo cez (0.b,memory_jit,reg_PC.w*8) a nepotrebovali 2x data
-
-acc:	- (priamo instrukciu dodat)
-imp:	- (priamo instrukciu dodat)
-imm:	- <insn>.b #imm,reg_[AXY] (moveq pre <= $7f a/alebo ak nevadi sign ext --vadi, vid reg.w indexy...)
-
-rel:	- dva vstupy, jeden pre reg_PC a jeden pre offset na skok samotny ($abcd-8000.w,memory_jit)
-
-+ abs:	<insn.b> ($abcd-$8000.w,memory),reg_[AXY]; jmp/jsr vid hore (reg_PC a offset pre memory_jit)
-+ zp:	<insn.b> ($00ab-$8000.w,memory),reg_[AXY]
-
-+ abs,x:	- dva vstupy, jeden pre moveq, jeden pre samotnu EA
-+ abs,y:
-		moveq	#$cd,d0
-		add.b	reg_X,d0
-		subx.l	d1,d1
-		sub.l	d1,xpos
-		; <insn>.b ($abcd-$8000.w,memory,reg_X.w),reg_[AXY]
-sta/stx/sty:
-		; move.b reg_[AXY],($abcd-$8000.w,memory,reg_X.w)
-
-* x,ind:
-		move.w	#$abcd-$8000,d0
-		add.b	reg_X,d0
-		move.w (0.b,memory,d0.w),d0
-		ror.w	#8,d0
-		; <insn>.b (-$8000.w,memory,d0.w),reg_A
-sta:
-		move.w	#$abcd-$8000,d0
-		add.b	reg_X,d0
-		move.w (0.b,memory,d0.w),d0
-		ror.w	#8,d0
-		move.b reg_A,(-$8000.w,memory,d0.w)
-
-* ind,y:
-		move.w ($00ab-$8000.w,memory),d0
-		ror.w	#8,d0
-		add.b	reg_Y,d0
-		subx.l	d1,d1							; d1.l: $ffffffff if C=1, $00000000 if C=0
-		suba.l	d1,xpos							; flags not affected
-		negx.w	d1								; d1.w: $ff00 if C=1, $0000 if C=0
-		sub.w	d1,d0
-		; <insn>.b (-$8000,memory,d0.w)
-sta:
-		move.w ($00ab-$8000.w,memory),d0
-		ror.w	#8,d0
-		add.w	reg_Y,d0
-		move.b	reg_A,(-$8000,memory,d0.w)
-
-* ind:
-		move.w ($abcd-$8000.w,memory),d0
-		ror.w	#8,d0
-		jmp		(-$8000.w,memory,d0.w)
-
-+ zp,x:
-+ zp,y:
-		move.w	#$abcd-$8000,d0
-		add.b	reg_X,d0
-		; <insn>.b (0.b,memory,d0.w),reg_[AXY]
-sta/stx/sty:
-		move.w	#$abcd-$8000,d0
-		add.b	reg_X,d0
-		; move.b reg_[AXY],(0.b,memory,d0.w)
-
 - zmena move.b d0,d1 na makra, ktore beru d1
 - v MEMORY_StateRead() musim tiez pomazat vsetko, co suvisi s JIT pamatou
 - v MEMORY_InitialiseMachine() musim pomazat vsetko tiez
@@ -922,8 +856,7 @@ JIT ideas:
 - nahradzat testy do memory_jit priamo skokmi (v podstate len zamenit tst.l + bne + jmp na jmp)
 - takmer vzdy viem urcit, ci dana adresa je HW alebo RAM vopred
 - nenechat tam chudaka pocitat, ci JMP prekracuje hranicu a blbosti, to moze urobit aj JIT
-- spravit si dve verzie generovaneho kodu - s porovnavanim cyklov a bez; ak je cely blok kratsi ako limit -> no problem!
-- rozsirenie predosleho bodu: generovat bloky LEN podla 'limit' -- tu je ale problem, ze nevieme moc spolahlivo robit slucky: napriklad mame limit 114 a blok trva 90, super. ale to je len jedna iteracia a mi nevieme, kolko iteracii treba. aj keby som pri vetveni pozeral stav pocitadla, ja neviem potom skoncit v strede slucky. to uz skor to predosle riesenie, ze ak viem, ze do limitu tam nie je ziadna slucka, tak pouzit ten blok, ale bojim sa, ze takto sa naalokuje spusta blokov a vetvenie je celkom caste
+- spravit si dve verzie generovaneho kodu - s porovnavanim cyklov a bez; na konci kazdeho bloku by som porovnal jednak ci z neho nemam vyjst a druhak, ci blok, kam ma skakat sa este stale zmesti do limitu -> ak nie, preklop sa na per-instruction verziu ... toto ale asi ma zmysel len pre fakt casto pouzivane bloky
 - odvaznejsi kod, napriklad pre skoky -- prelozit rovno, ako som robil, ale poznacit si zavislosti (najzaujimavejsie sa javi rovno cele $d301), cize ked zmenim d301, vsetky bloky, ktore zavisia na danom rozsahu sa zrusia (napr ROM/RAM, RAM/extRAM a vynimocne aj HW/ne-HW)... zrejme by to fungovalo tak, ze pri kompilovani by sa pozeralo, ci sa meni rozsah a ak ano, tak JIT kompilator (!) by prepol dany rozsah sam (a potom zase naspat pri skonceni kompilacie).
 - SED/CLD by sposobilo return a zrejme z nejakej tabulky vycitalo, ktore bloky ma pregenerovat, aby bin/dec adc/sub malo len jednu rutinu (mozno blbost, chcelo by to vidiet v praxi na par desiatkach programov; urcite ako ifdef)
 - switch, ci podporovat smc kod
@@ -932,3 +865,6 @@ JIT ideas:
   C - nastavuje ASL, LSR, ROR, ROL, ADC, SBC; vstup pre ROL, ROR, ADC, SBC, BCC, BCS
   D - nastavuje CLD, SED; vstup pre ADC, SBC
   Cize hlavne Z/N a C, ADC/SBC bude klasicky najhorsia :)
+- zgrupovat rovnake adresovania... lda (zp,x) and #10 sta (zp,x)...
+- detekovat zname vzorce (vid xasm's pseudo instrukcie, napr clc adc; clc adc adc #0; ...)
+- pouzivat cpu.c pre prvy prechod -- urcite je spusta kodu, ktory zbehne len raz; tiez by to mohlo zjednodusit SMC, proste by sa z modifikovanej adresy skakalo nie na znovu prelozenu, ale na interpretovanu adresu (problem ale stale ostava, ako ten smc kod detekovat -- pre abs adresy OK, este aj pre abs,x OK, ale pre nepriame je to blbe... mozno kaslat? rovnako ako tie zapisy do HW cez nepriame?)

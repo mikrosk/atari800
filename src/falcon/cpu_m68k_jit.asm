@@ -19,7 +19,7 @@
 ; along with Atari800; if not, write to the Free Software
 ; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
-		opt		a-,o4-,o12-,og-					; don't automatically optimize absolute to PC-relative references
+		opt		a-;,o4-,o12-,og-				; don't automatically optimize absolute to PC-relative references
 												; don't optimize move.l to moveq
 												; don't optimize <op>.l #x,An to <op>.w #x,An.
 												; disable generic vasm optimizations
@@ -45,6 +45,16 @@ MEMORY_HARDWARE	equ	2
 		xdef	_CPU_JIT_Execute
 		xdef	_CPU_JIT_Instance
 		xref	_CPU_JIT_Invalidate				; CPU_JIT_Invalidate(const UWORD addr)
+
+		xref	_GTIA_GetByte
+		xref	_POKEY_GetByte
+		xref	_PIA_GetByte
+		xref	_ANTIC_GetByte
+
+		xref	_GTIA_PutByte
+		xref	_POKEY_PutByte
+		xref	_PIA_PutByte
+		xref	_ANTIC_PutByte
 
 		xdef	_JIT_insn_opcode_00
 		xdef	_JIT_insn_opcode_01
@@ -274,20 +284,6 @@ unknown	equ		-1
 no_stop	equ		0
 is_stop	equ		1
 
-accumulator	equ	0
-absolute	equ	1
-absolute_x	equ	2
-absolute_y	equ	3
-immediate	equ	4
-implied		equ	5
-indirect	equ	6
-x_indirect	equ	7
-indirect_y	equ	8
-relative	equ	9
-zero_page	equ	10
-zero_page_x	equ	11
-zero_page_y	equ	12
-
 reg_A	equr	d2								; .b
 reg_X	equr	d3								; .b
 reg_Y	equr	d4								; .b
@@ -301,258 +297,8 @@ memory_jit equr	a4
 reg_PC	equr	a5								; .w (must be written as long due to sign extension)
 xpos	equr	a6								; .l, ANTIC_xpos mirror
 
-; ----------------------------------------------
-
-; Bit      : 76543210
-; CCR      : ***XNZVC
-; CPU_regP : NV*BDIZC
-
-CCR_N	equ		3
-CCR_Z	equ		2
-
-N_FLAG	equ		7
-V_FLAG	equ		6
-B_FLAG	equ		4
-D_FLAG	equ		3
-I_FLAG	equ		2
-Z_FLAG	equ		1
-C_FLAG	equ		0
-
-		macro	GetStatus
-		move.b	_CPU_regP,\1					; \1.b: 00*BDI00
-		move	reg_CCR,ccr
-.n\@:	bpl.b	.z\@
-		;bset	#N_FLAG,\1
-		ori.b	#(1<<N_FLAG),\1
-.z\@:	move	reg_CCR,ccr						; comment out to ignore N=1 Z=1 (possible by BIT and PLP)
-		bne.b	.v\@
-		;bset	#Z_FLAG,\1
-		addq.b	#(1<<Z_FLAG),\1
-.v\@:	tst.b	V
-		beq.b	.c\@
-		;bset	#V_FLAG,\1
-		ori.b	#(1<<V_FLAG),\1
-.c\@:	tst.b	C
-		beq.b	.done\@
-		;bset	#C_FLAG,\1
-		addq.b	#(1<<C_FLAG),\1
-.done\@:										; \1.b:   NV*BDIZC
-		endm
-
-		macro	PutStatus						; \1.b:    NV*BDIZC
-		move.b	\1,C							; dC.b:    NV*BDIZC
-		add.b	C,C								; dC.b: [N]V*BDIZC0
-		smi		V
-		subx.b	reg_CCR,reg_CCR					; dc.b:    NNNNNNNN
-		lsl.b	#6,C							; dC.b: [Z]C0000000
-		smi		C
-		addx.b	reg_CCR,reg_CCR					; dc.b:    NNNNNNNZ
-		lsl.b	#2,reg_CCR						; dc.b:    NNNNNZ00
-		endm
-
-		macro	ClrV
-		clr.b	V
-		endm
-		macro	SetD
-		ori.b	#(1<<D_FLAG),_CPU_regP
-		endm
-		macro	ClrD
-		andi.b	#~(1<<D_FLAG),_CPU_regP
-		endm
-		macro	SetI
-		ori.b	#(1<<I_FLAG),_CPU_regP
-		endm
-		macro	ClrI
-		andi.b	#~(1<<I_FLAG),_CPU_regP
-		endm
-		macro	SetC
-		st		C
-		endm
-		macro	ClrC
-		clr.b	C
-		endm
-
-		macro	SAVE_NZ
-		move	ccr,reg_CCR
-		endm
-
-		macro	SAVE_NZC
-		move	ccr,reg_CCR
-		subx.b	C,C
-		endm
-
-		macro	SAVE_NZc
-		move	ccr,reg_CCR
-		scc		C								; inverted C
-		endm
-
-		macro	SAVE_NVZC
-		move	ccr,reg_CCR
-		svs		V
-		subx.b	C,C
-		endm
-
-		macro	SAVE_NVZc
-		move	ccr,reg_CCR
-		svs		V
-		scc		C								; inverted C
-		endm
-
-		macro	LOAD_C
-		add.b	C,C
-		endm
-
-		macro	LOAD_c
-		subq.b	#1,C							; inverted C
-		endm
-
-		macro	TEST_NZ
-		move	reg_CCR,ccr
-		endm
-
-		macro	TEST_V
-		tst.b	V
-		endm
-
-		macro	TEST_C
-		tst.b	C
-		endm
-
-; ----------------------------------------------
-
-		macro	MEMORY_dGetByte					; d0.l: addr
-		move.b	(-$8000.w,memory,d0.l*1),d0
-		endm
-
-		macro	MEMORY_dGetWord					; d0.l: addr
-		move.w	(-$8000.w,memory,d0.l*1),d0
-		ror.w	#8,d0
-		endm
-
-		macro	MEMORY_dPutByte					; d0.l: addr, d1.b: value
-		move.b	d1,(-$8000.w,memory,d0.l*1)
-		endm
-
-		macro	MEMORY_GetByte					; d0.l: addr
-		cmpi.b	#MEMORY_HARDWARE,(-$8000.w,mem_attrib,d0.l*1)
-		bne.b	.no_hardware\@
-		pea		(.skip\@,pc)
-		jmp		MEMORY_HwGetByte
-.no_hardware\@:
-		MEMORY_dGetByte
-.skip\@:
-		endm
-
-		macro	MEMORY_PutByte_ZP				; d0.l: addr, d1.b: value
-		tst.l	(-$8000.w,memory_jit,d0.l*8)	; UBYTE *insn_addr
-		beq.b	.no_code\@
-		pea		(.no_code\@,pc)
-		jmp		JIT_Invalidate
-.no_code\@:
-		MEMORY_dPutByte
-		endm
-
-		macro	MEMORY_PutByte					; d0.l: addr, d1.b: value
-		cmpi.b	#MEMORY_RAM,(-$8000.w,mem_attrib,d0.l*1)
-		beq.b	.no_hardware\@
-		cmpi.b	#MEMORY_HARDWARE,(-$8000.w,mem_attrib,d0.l*1)
-		bne.b	.skip\@
-		pea		(.skip\@,pc)
-		jmp		MEMORY_HwPutByte
-.no_hardware\@:
-		tst.l	(-$8000.w,memory_jit,d0.l*8)	; UBYTE *insn_addr
-		beq.b	.no_code\@
-		pea		(.no_code\@,pc)
-		jmp		JIT_Invalidate
-.no_code\@:
-		MEMORY_dPutByte
-.skip\@:
-		endm
-
-		macro	RMW_GetByte						; d0.l: addr
-		cmpi.b	#MEMORY_HARDWARE,(-$8000.w,mem_attrib,d0.l*1)
-		bne.b	.no_hardware\@
-		move.l	d0,-(sp)
-		pea		(.check_rmw\@,pc)
-		jmp		MEMORY_HwGetByte
-.check_rmw\@:
-		; d0.b: value
-		movea.l	(sp)+,a0
-		move.l	a0,d1
-		and.w	#$ef00,d1
-		cmp.w	#$c000,d1
-		bne.b	.skip\@
-		move.l	d0,-(sp)						; value
-		move.l	a0,-(sp)						; addr
-		subq.l	#1,xpos
-		move.l	xpos,_ANTIC_xpos
-		jsr		_MEMORY_HwPutByte
-		move.l	_ANTIC_xpos,xpos
-		addq.l	#1,xpos
-		addq.l	#4,sp
-		move.l	(sp)+,d0
-.no_hardware\@:
-		MEMORY_dGetByte
-.skip\@:
-		endm
-
-; ----------------------------------------------
-
-		macro	NO_OFFSET_WITH_BYTES_AND_CYCLES
-		dc.w	-1
-		dc.w	-1
-		dc.w	.m68k_bytes-.m68k_start
-		dc.w	.m68k_cycles-.m68k_start
-		dc.w	-1
-		dc.w	.m68k_end-.m68k_start
-		endm
-
-		macro	NO_OFFSET_WITH_CYCLES
-		dc.w	-1
-		dc.w	-1
-		dc.w	-1
-		dc.w	.m68k_cycles-.m68k_start
-		dc.w	-1
-		dc.w	.m68k_end-.m68k_start
-		endm
-
-		macro	OFFSET_WITH_BYTES_AND_CYCLES	; offset
-		dc.w	.m68k_data-.m68k_start+\1
-		dc.w	-1
-		dc.w	.m68k_bytes-.m68k_start
-		dc.w	.m68k_cycles-.m68k_start
-		dc.w	-1
-		dc.w	.m68k_end-.m68k_start
-		endm
-
-		macro	OFFSET_WITH_BYTES_AND_CYCLES_EXTRA ; offset
-		dc.w	.m68k_data-.m68k_start+\1
-		dc.w	-1
-		dc.w	.m68k_bytes-.m68k_start
-		dc.w	.m68k_cycles-.m68k_start
-		dc.w	.m68k_cycles_extra-.m68k_start
-		dc.w	.m68k_end-.m68k_start
-		endm
-
-		macro	OFFSET_WITH_DATA_EXTRA_AND_BYTES_AND_CYCLES ; offset
-		dc.w	.m68k_data-.m68k_start+\1
-		dc.w	.m68k_data_extra-.m68k_start+\1
-		dc.w	.m68k_bytes-.m68k_start
-		dc.w	.m68k_cycles-.m68k_start
-		dc.w	-1
-		dc.w	.m68k_end-.m68k_start
-		endm
-
-		macro	OFFSET_WITH_CYCLES				; offset
-		dc.w	.m68k_data-.m68k_start+\1
-		dc.w	-1
-		dc.w	-1
-		dc.w	.m68k_cycles-.m68k_start
-		dc.w	-1
-		dc.w	.m68k_end-.m68k_start
-		endm
-
-; ----------------------------------------------
+		include	"cpu_m68k_jit_flags.asm"
+		include	"cpu_m68k_jit_addr.asm"
 
 		xref	_DUMP
 		macro	DUMP
@@ -562,224 +308,6 @@ C_FLAG	equ		0
 		;move.b	reg_Y,_CPU_regY
 		;move.b	reg_S+1,_CPU_regS
 		;jsr		_DUMP
-		endm
-
-		macro	ACCUMULATOR
-		dc.b	no_stop
-		dc.b	accumulator
-		NO_OFFSET_WITH_BYTES_AND_CYCLES
-.m68k_start:
-		DUMP
-.m68k_cycles:
-		addq.l	#1,xpos							; 2 - 8
-		clr.l	d0
-		endm
-
-		macro	ABSOLUTE
-		dc.b	no_stop
-		dc.b	absolute
-		OFFSET_WITH_BYTES_AND_CYCLES 4
-.m68k_start:
-		DUMP
-.m68k_cycles:
-		addq.l	#1,xpos							; 2 - 8
-.m68k_data:
-		move.l	#$00000000,d0
-		endm
-
-		macro	ABSOLUTE_JUMP
-		dc.b	is_stop
-		dc.b	absolute
-		OFFSET_WITH_CYCLES 4
-.m68k_start:
-		DUMP
-.m68k_cycles:
-		addq.l	#1,xpos							; 2 - 8
-		endm
-
-		macro	ABSOLUTE_X
-		dc.b	no_stop
-		dc.b	absolute_x
-		OFFSET_WITH_BYTES_AND_CYCLES 4
-.m68k_start:
-		DUMP
-.m68k_cycles:
-		addq.l	#1,xpos							; 2 - 8
-.m68k_data:
-		move.l	#$00000000,d0
-		add.w	reg_X,d0
-		endm
-
-		macro	ABSOLUTE_Y
-		dc.b	no_stop
-		dc.b	absolute_y
-		OFFSET_WITH_BYTES_AND_CYCLES 4
-.m68k_start:
-		DUMP
-.m68k_cycles:
-		addq.l	#1,xpos							; 2 - 8
-.m68k_data:
-		move.l	#$00000000,d0
-		add.w	reg_Y,d0
-		endm
-
-		macro	IMMEDIATE
-		dc.b	no_stop
-		dc.b	immediate
-		OFFSET_WITH_BYTES_AND_CYCLES 4
-.m68k_start:
-		DUMP
-.m68k_cycles:
-		addq.l	#1,xpos							; 2 - 8
-.m68k_data:
-		move.l	#$00000000,d0
-		endm
-
-		macro	IMPLIED
-		dc.b	no_stop
-		dc.b	implied
-		NO_OFFSET_WITH_BYTES_AND_CYCLES
-.m68k_start:
-		DUMP
-.m68k_cycles:
-		addq.l	#1,xpos							; 2 - 8
-		clr.l	d0
-		endm
-
-		macro	IMPLIED_RETURN
-		dc.b	is_stop
-		dc.b	implied
-		NO_OFFSET_WITH_CYCLES
-.m68k_start:
-		DUMP
-.m68k_cycles:
-		addq.l	#1,xpos							; 2 - 8
-		clr.l	d0
-		endm
-
-		macro	INDIRECT
-		dc.b	is_stop
-		dc.b	indirect
-		OFFSET_WITH_CYCLES	4
-.m68k_start:
-		DUMP
-.m68k_cycles:
-		addq.l	#1,xpos							; 2 - 8
-		endm
-
-		macro	INDIRECT_X
-		dc.b	no_stop
-		dc.b	x_indirect
-		OFFSET_WITH_BYTES_AND_CYCLES 4
-.m68k_start:
-		DUMP
-.m68k_cycles:
-		addq.l	#1,xpos							; 2 - 8
-.m68k_data:
-		move.l	#$00000000,d0
-		add.b	reg_X,d0
-		MEMORY_dGetWord
-		endm
-
-		macro	INDIRECT_Y
-		dc.b	no_stop
-		dc.b	indirect_y
-		OFFSET_WITH_BYTES_AND_CYCLES 4
-.m68k_start:
-		DUMP
-.m68k_cycles:
-		addq.l	#1,xpos							; 2 - 8
-.m68k_data:
-		move.l	#$00000000,d0
-		MEMORY_dGetWord
-		add.w	reg_Y,d0
-		endm
-
-		macro	RELATIVE
-		dc.b	is_stop
-		dc.b	relative
-		OFFSET_WITH_BYTES_AND_CYCLES_EXTRA 4
-.m68k_start:
-		DUMP
-.m68k_cycles:
-		addq.l	#1,xpos							; 2 - 8
-		endm
-
-		macro	ZPAGE
-		dc.b	no_stop
-		dc.b	zero_page
-		OFFSET_WITH_BYTES_AND_CYCLES 2
-.m68k_start:
-		DUMP
-.m68k_cycles:
-		addq.l	#1,xpos							; 2 - 8
-		endm
-
-		macro	ZPAGE_RMW
-		dc.b	no_stop
-		dc.b	zero_page
-		OFFSET_WITH_DATA_EXTRA_AND_BYTES_AND_CYCLES 2
-.m68k_start:
-		DUMP
-.m68k_cycles:
-		addq.l	#1,xpos							; 2 - 8
-		endm
-
-		macro	ZPAGE_X
-		dc.b	no_stop
-		dc.b	zero_page_x
-		OFFSET_WITH_BYTES_AND_CYCLES 4
-.m68k_start:
-		DUMP
-.m68k_cycles:
-		addq.l	#1,xpos							; 2 - 8
-.m68k_data:
-		move.l	#$00000000,d0
-		add.b	reg_X,d0
-		endm
-
-		macro	ZPAGE_Y
-		dc.b	no_stop
-		dc.b	zero_page_y
-		OFFSET_WITH_BYTES_AND_CYCLES 4
-.m68k_start:
-		DUMP
-.m68k_cycles:
-		addq.l	#1,xpos							; 2 - 8
-.m68k_data:
-		move.l	#$00000000,d0
-		add.b	reg_Y,d0
-		endm
-
-		macro	NOT_IMPLEMENTED
-		dc.b	unknown
-		dc.b	unknown
-		endm
-
-		macro	UPDATE_PC
-.m68k_bytes:
-		addq.w	#1,reg_PC						; 1 - 3
-		endm
-
-		macro	DONE
-.m68k_end:
-		endm
-
-; ----------------------------------------------
-
-; 1 extra cycle for X (or Y) index overflow
-		macro	NCYCLES_X
-		cmp.b	d0,reg_X						; if ((UBYTE) addr < X) ANTIC_xpos++
-		bls.b	.no_extra_cycle\@
-		addq.l	#1,xpos
-.no_extra_cycle\@:
-		endm
-
-		macro	NCYCLES_Y
-		cmp.b	d0,reg_Y						; if ((UBYTE) addr < Y) ANTIC_xpos++
-		bls.b	.no_extra_cycle\@
-		addq.l	#1,xpos
-.no_extra_cycle\@:
 		endm
 
 ; ---------------------------------------------
@@ -830,16 +358,25 @@ _CPU_JIT_Execute:
 ;                       const UWORD data, const UWORD data_extra,
 ;                       const int bytes,
 ;                       const int cycles, const int cycles_extra);
-		rsreset
-insn_template_is_stop: 			rs.b	1
-insn_template_addressing_mode:	rs.b	1
-insn_template_data_offset1:		rs.w	1
-insn_template_data_offset2:		rs.w	1
-insn_template_bytes_offset:		rs.w	1
-insn_template_cycles_offset1:	rs.w	1
-insn_template_cycles_offset2:	rs.w	1
-insn_template_code_size:		rs.w	1
-insn_template_code:				rs.b	0
+				rsreset
+header_stop		rs.w	1
+header_addressing rs.w	1
+header_h_begin	rs.l	1
+header_h_end	rs.l	1
+header_f_begin	rs.l	1
+header_f_end	rs.l	1
+header_cycles	rs.l	1
+header_bytes	rs.l	1
+header_p_base	rs.l	1						; struct m68k_t*
+header_p_hw		rs.l	1						; struct m68k_t* or NULL
+header_p_rmw	rs.l	1						; struct m68k_t* or NULL
+header_p_hw_rmw	rs.l	1						; struct m68k_t* or NULL
+
+				rsreset							; struct m68k_t
+m68k_start		rs.l	1						;
+m68k_end		rs.l	1						;
+m68k_data1		rs.l	1						;
+m68k_data2		rs.l	1						;
 
 _CPU_JIT_Instance:
 		movea.l	(8,sp),a0						; a0: insn template
@@ -907,81 +444,96 @@ _CPU_JIT_Instance:
 
 ; ----------------------------------------------
 
-		macro	AND6502
-		and.b	d0,reg_A
+P_BASE	equ		.m68k_p_base
+P_HW	equ		.m68k_p_hw
+P_RMW	equ		.m68k_p_rmw
+P_HW_RMW equ	.m68k_p_hw_rmw
+P_NULL	equ		0
+
+		macro	HEADER
+		dc.w	\1								; \1: stop
+		dc.w	\2								; \2: base addressing
+		dc.l	.m68k_header
+		dc.l	.m68k_header_end
+		dc.l	.m68k_footer
+		dc.l	.m68k_footer_end
+		dc.l	.m68k_cycles
+		dc.l	.m68k_bytes
+		dc.l	P_BASE
+		dc.l	\3								; \3: p_hw
+		dc.l	\4								; \4: p_rmw
+		dc.l	\5								; \5: p_hw_rmw
+.m68k_header:
+		DUMP
+.m68k_cycles equ *+0
+		addq.l	#1,xpos							; 2 - 8
+.m68k_header_end:
+		endm
+
+		macro	FOOTER
+.m68k_footer:
+.m68k_bytes equ *+0
+		addq.w	#1,reg_PC						; 1 - 3
+		cmp.l	_ANTIC_xpos_limit,xpos
+		blt.b	.next_insn
+		rts
+.next_insn:
+.m68k_footer_end:
+		endm
+
+		macro	FOOTER_NO_BYTES
+.m68k_footer:
+.m68k_bytes equ 0
+		cmp.l	_ANTIC_xpos_limit,xpos
+		blt.b	.next_insn
+		rts
+.next_insn:
+.m68k_footer_end:
+		endm
+
+* 		HEADER	no_stop,absolute,P_HW,P_RMW,P_HW_RMW
+* 		AND6502	ABSOLUTE,reg_A
+* 		AND6502	ABSOLUTE_HW,reg_A
+* 		AND6502	ABSOLUTE_RMW,reg_A
+* 		AND6502	ABSOLUTE_HW_RMW,reg_A
+* 		FOOTER
+
+		macro	AND6502							; \1: <addressing>, \2: reg_A/#imm
+		\1		and,\2
 		SAVE_NZ
 		UPDATE_PC
 		RETURN_OR_CONTINUE
 		endm
 
-		macro	CMP6502
-		cmp.b	d0,reg_A
+		macro	CMP6502							; \1: <addressing>, \2: reg_[AXY]/#imm
+		\1		cmp,\2
 		SAVE_NZc
 		UPDATE_PC
 		RETURN_OR_CONTINUE
 		endm
 
-		macro	CPX6502
-		cmp.b	d0,reg_X
-		SAVE_NZc
-		UPDATE_PC
-		RETURN_OR_CONTINUE
-		endm
-
-		macro	CPY6502
-		cmp.b	d0,reg_Y
-		SAVE_NZc
-		UPDATE_PC
-		RETURN_OR_CONTINUE
-		endm
-
-		macro	EOR6502
-		eor.b	d0,reg_A
+		macro	EOR6502							; \1: <addressing>, \2: reg_A/#imm
+		\1		eor,\2
 		SAVE_NZ
 		UPDATE_PC
 		RETURN_OR_CONTINUE
 		endm
 
-		macro	LDA6502
-		move.b	d0,reg_A
+		macro	LD6502							; \1: <addressing>, \2: reg_[AXY]/#imm
+		\1		move,\2
 		SAVE_NZ
 		UPDATE_PC
 		RETURN_OR_CONTINUE
 		endm
 
-		macro	LDX6502
-		move.b	d0,reg_X
+		macro	ORA6502							; \1: <addressing>, \2: reg_A/#imm
+		\1		or,\2
 		SAVE_NZ
 		UPDATE_PC
 		RETURN_OR_CONTINUE
 		endm
 
-		macro	LDY6502
-		move.b	d0,reg_Y
-		SAVE_NZ
-		UPDATE_PC
-		RETURN_OR_CONTINUE
-		endm
-
-		macro	ORA6502
-		or.b	d0,reg_A
-		SAVE_NZ
-		UPDATE_PC
-		RETURN_OR_CONTINUE
-		endm
-
-		macro	BIT6502
-		move.b	d0,V
-		move	ccr,reg_CCR						; save N
-		and.b	reg_A,V
-		bne.b	.ne\@
-		or.b	#(1<<CCR_Z),reg_CCR				; save Z
-.ne\@:	and.b	#(1<<V_FLAG),V
-		UPDATE_PC
-		RETURN_OR_CONTINUE
-		endm
-
-		macro	ADC6502
+		macro	ADC6502							; \1: <addressing>, \2: reg_A/#imm	TODO
 		btst	#D_FLAG,_CPU_regP
 		beq.b	.binary_adc\@
 .decimal_adc\@:
@@ -996,7 +548,7 @@ _CPU_JIT_Instance:
 		RETURN_OR_CONTINUE
 		endm
 
-		macro	SBC6502
+		macro	SBC6502							; \1.b: #imm or dn TODO moveq
 		btst	#D_FLAG,_CPU_regP
 		beq.b	.binary_sbc\@
 .decimal_sbc\@:
@@ -1011,26 +563,83 @@ _CPU_JIT_Instance:
 		RETURN_OR_CONTINUE
 		endm
 
-		macro	ROL_ONLY						; src/dst reg
+		macro	ST6502							; \1: <addressing>, \2: reg_[AXY]
+		\1		\2
+		UPDATE_PC
+		RETURN_OR_CONTINUE
+		endm
+
+		macro	BIT6502							; \1: <addressing>, \2: reg_A
+		\1		move,V
+		move	ccr,reg_CCR						; save N
+		and.b	\2,V
+		bne.b	.ne\@
+		or.b	#(1<<CCR_Z),reg_CCR				; save Z
+.ne\@:	and.b	#(1<<V_FLAG),V
+		UPDATE_PC
+		RETURN_OR_CONTINUE
+		endm
+
+		macro	ROL_ONLY						; \1.b: dn
 		LOAD_C
 		addx.b	\1,\1
 		SAVE_NZC
 		endm
+		macro	ROL6502							; \1: <addressing>, \2: reg_A/dn
+		\1		ROL_ONLY,2
+		UPDATE_PC
+		RETURN_OR_CONTINUE
+		endm
 
-		macro	ROR_ONLY						; src/dst reg
+		macro	ROR_ONLY						; \1.b: dn
 		LOAD_C
 		roxr.b	#1,\1
 		SAVE_NZC
 		endm
+		macro	ROR6502							; \1: <addressing>, \2: reg_A/dn
+		\1		ROR_ONLY,\2
+		UPDATE_PC
+		RETURN_OR_CONTINUE
+		endm
 
-		macro	ASL_ONLY						; src/dst reg
+		macro	ASL_ONLY						; \1.b: dn
 		add.b	\1,\1
 		SAVE_NZC
 		endm
+		macro	ASL6502							; \1: <addressing>, \2: reg_A/dn
+		\1		ASL_ONLY,\2
+		UPDATE_PC
+		RETURN_OR_CONTINUE
+		endm
 
-		macro	LSR_ONLY						; src/dst reg
+		macro	LSR_ONLY						; \1.b: dn
 		lsr.b	#1,\1
 		SAVE_NZC
+		endm
+		macro	LSR6502							; \1: <addressing>, \2: reg_A/dn
+		\1		LSR_ONLY,\2
+		UPDATE_PC
+		RETURN_OR_CONTINUE
+		endm
+
+		macro	INC_ONLY						; \1.b: dn
+		addq.b	#1,\1
+		SAVE_NZ
+		endm
+		macro	INC6502							; \1: <addressing>, \2: reg_A/dn
+		\1		INC_ONLY,\2
+		UPDATE_PC
+		RETURN_OR_CONTINUE
+		endm
+
+		macro	DEC_ONLY						; \1.b: dn
+		subq.b	#1,\1
+		SAVE_NZ
+		endm
+		macro	DEC6502							; \1: <addressing>, \2: reg_A/dn
+		\1		DEC_ONLY,\2
+		UPDATE_PC
+		RETURN_OR_CONTINUE
 		endm
 
 		; input:    (clean d0.l)
@@ -1231,22 +840,99 @@ decimal_sbc:
 		SAVE_NVZc
 		rts
 
-MEMORY_HwGetByte:
-		clr.l	-(sp)							; FALSE (no side effects)
-		move.l	d0,-(sp)						; addr
-		move.l	xpos,_ANTIC_xpos
-		jsr		_MEMORY_HwGetByte
-		move.l	_ANTIC_xpos,xpos
-		addq.l	#8,sp
+rol_mem_rmw:
+		MEMORY_Hw_RMW ROL_ONLY
+		rts
+ror_mem_rmw:
+		MEMORY_Hw_RMW ROR_ONLY
+		rts
+asl_mem_rmw:
+		MEMORY_Hw_RMW ASL_ONLY
+		rts
+lsr_mem_rmw:
+		MEMORY_Hw_RMW LSR_ONLY
+		rts
+inc_mem_rmw:
+		MEMORY_Hw_RMW INC_ONLY
+		rts
+dec_mem_rmw:
+		MEMORY_Hw_RMW DEC_ONLY
 		rts
 
-MEMORY_HwPutByte:
-		move.l	d1,-(sp)						; value
-		move.l	d0,-(sp)						; addr
-		move.l	xpos,_ANTIC_xpos
-		jsr		_MEMORY_HwPutByte
-		move.l	_ANTIC_xpos,xpos
-		addq.l	#8,sp
+rol_gtia_rmw:
+		GTIA_RMW ROL_ONLY
+		rts
+ror_gtia_rmw:
+		GTIA_RMW ROR_ONLY
+		rts
+asl_gtia_rmw:
+		GTIA_RMW ASL_ONLY
+		rts
+lsr_gtia_rmw:
+		GTIA_RMW LSR_ONLY
+		rts
+inc_gtia_rmw:
+		GTIA_RMW INC_ONLY
+		rts
+dec_gtia_rmw:
+		GTIA_RMW DEC_ONLY
+		rts
+
+rol_pokey_rmw:
+		POKEY_RMW ROL_ONLY
+		rts
+ror_pokey_rmw:
+		POKEY_RMW ROR_ONLY
+		rts
+asl_pokey_rmw:
+		POKEY_RMW ASL_ONLY
+		rts
+lsr_pokey_rmw:
+		POKEY_RMW LSR_ONLY
+		rts
+inc_pokey_rmw:
+		POKEY_RMW INC_ONLY
+		rts
+dec_pokey_rmw:
+		POKEY_RMW DEC_ONLY
+		rts
+
+rol_pia_rmw:
+		PIA_RMW ROL_ONLY
+		rts
+ror_pia_rmw:
+		PIA_RMW ROR_ONLY
+		rts
+asl_pia_rmw:
+		PIA_RMW ASL_ONLY
+		rts
+lsr_pia_rmw:
+		PIA_RMW LSR_ONLY
+		rts
+inc_pia_rmw:
+		PIA_RMW INC_ONLY
+		rts
+dec_pia_rmw:
+		PIA_RMW DEC_ONLY
+		rts
+
+rol_antic_rmw:
+		ANTIC_RMW ROL_ONLY
+		rts
+ror_antic_rmw:
+		ANTIC_RMW ROR_ONLY
+		rts
+asl_antic_rmw:
+		ANTIC_RMW ASL_ONLY
+		rts
+lsr_antic_rmw:
+		ANTIC_RMW LSR_ONLY
+		rts
+inc_antic_rmw:
+		ANTIC_RMW INC_ONLY
+		rts
+dec_antic_rmw:
+		ANTIC_RMW DEC_ONLY
 		rts
 
 JIT_Invalidate:
@@ -2704,6 +2390,60 @@ addql_pc_table:
 		addq.w	#3,reg_PC						;
 
 reg_S:	dc.w	$0100
+
+hw_get_table:
+		dc.l	_GTIA_GetByte
+		dc.l	_POKEY_GetByte
+		dc.l	_PIA_GetByte
+		dc.l	_ANTIC_GetByte
+
+hw_put_table:
+		dc.l	_GTIA_PutByte
+		dc.l	_POKEY_PutByte
+		dc.l	_PIA_PutByte
+		dc.l	_ANTIC_PutByte
+
+rol_rmw_table:
+		dc.l	rol_mem_rmw
+		dc.l	rol_gtia_rmw
+		dc.l	rol_pokey_rmw
+		dc.l	rol_pia_rmw
+		dc.l	rol_antic_rmw
+
+ror_rmw_table:
+		dc.l	ror_mem_rmw
+		dc.l	ror_gtia_rmw
+		dc.l	ror_pokey_rmw
+		dc.l	ror_pia_rmw
+		dc.l	ror_antic_rmw
+
+asl_rmw_table:
+		dc.l	asl_mem_rmw
+		dc.l	asl_gtia_rmw
+		dc.l	asl_pokey_rmw
+		dc.l	asl_pia_rmw
+		dc.l	asl_antic_rmw
+
+lsr_rmw_table:
+		dc.l	lsr_mem_rmw
+		dc.l	lsr_gtia_rmw
+		dc.l	lsr_pokey_rmw
+		dc.l	lsr_pia_rmw
+		dc.l	lsr_antic_rmw
+
+inc_rmw_table:
+		dc.l	inc_mem_rmw
+		dc.l	inc_gtia_rmw
+		dc.l	inc_pokey_rmw
+		dc.l	inc_pia_rmw
+		dc.l	inc_antic_rmw
+
+dec_rmw_table:
+		dc.l	dec_mem_rmw
+		dc.l	dec_gtia_rmw
+		dc.l	dec_pokey_rmw
+		dc.l	dec_pia_rmw
+		dc.l	dec_antic_rmw
 
 ; ---------------------------------------------
 		section	bss

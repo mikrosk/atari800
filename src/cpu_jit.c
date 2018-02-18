@@ -193,6 +193,14 @@ enum addressing_mode_t {
 	ZeroPage_Y		/* $AB,Y */
 };
 
+enum hw_pointers_t {
+		Generic = -1,
+		Gtia = 0,
+		Pokey = 1,
+		Pia = 2,
+		Antic = 3
+};
+
 struct JIT_block_t {
 	/* address of the first native insn in the block */
 	UBYTE* addr;
