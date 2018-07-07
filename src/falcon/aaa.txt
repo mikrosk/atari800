@@ -1,0 +1,83 @@
+- jsr/jmp $(abcd)/CHECKIRQ (add.w #-$8000), rts/rti+brk sa musia manualne upravovat (sub.w #-$8000) ... ach dpc v CHECKIRQ/brk sa musia spravit obe operacie
+- jmp, bcc budu skakat priamo cez (0.b,memory_jit,reg_PC.w*8) a nepotrebuju 2x data
+
+rel:	- tst + jmp (memory_jit,reg_PC.w)
+
+* ind:
+@@@		move.w ($abcd-$8000.w,memory),d0
+		ror.w	#8,d0
+		jmp		(-$8000.w,memory,d0.w)
+
+1. Ak ide o HW (absolute; absolute,x; absolute,y; (indirect,X); (indirect),Y)
+	- absolute (zrejme najcastejsi pripad) nahradit priamo pea $ffffabcd atd
+	- vsetky ostatne musia byt ako vypocet + move.l dn,-(sp)...
+	- sta/stx/sty: priamo d0=val a putbyte
+	- ostatne pracuju s A/X/Y, cize max opt. getbyte + addq.l #8,sp; <insn>.b d0,A/X/Y
+	- specialny pripad absolute+absolute,x pre RMW instrukcie (zrejme ako mam, cez macro, ktore pouziva d0)
+
+3. Ostatne (immediate)
+	- lda/ldx/ldy moveq: $7f; $80/neg.l; $7f/neg.b
+	- asi aj moveq #imm,dn a addx/subx.b dn,reg_A (nemusim riesit sign ext, moveq nejde do reg_*)
+	- ostatne: idealne cez macro, ktore bude mat vnutri <insn>.b #imm,A/X/Y
+
+- to, ci ide o HW alebo RAM sa rozhodne podla adresy (ignorujeme pripady typu $cfff+1), ale v pripade indirect rezimov tam musi byt porovnanie cez mem_attrib[] (zrejme nie prilis casty scenar).. mozno by som to mohol na zaciatok aj preskocit
+
+ADC  Add Memory to Accumulator with Carry
+AND  AND Memory with Accumulator
+CMP  Compare Memory with Accumulator
+EOR  Exclusive-OR Memory with Accumulator
+LDA  Load Accumulator with Memory
+ORA  OR Memory with Accumulator
+SBC  Subtract Memory from Accumulator with Borrow
+     immidiate     ADC #oper     69    2     2
+STA  Store Accumulator in Memory
+     zeropage      ADC oper      65    2     3
+     zeropage,X    ADC oper,X    75    2     4
+     absolute      ADC oper      6D    3     4
+     absolute,X    ADC oper,X    7D    3     4*
+     absolute,Y    ADC oper,Y    79    3     4*
+     (indirect,X)  ADC (oper,X)  61    2     6
+     (indirect),Y  ADC (oper),Y  71    2     5*
+
+ASL  Shift Left One Bit (Memory or Accumulator)
+LSR  Shift One Bit Right (Memory or Accumulator)
+ROL  Rotate One Bit Left (Memory or Accumulator)
+ROR  Rotate One Bit Right (Memory or Accumulator)
+     accumulator   ASL A         0A    1     2
+DEC  Decrement Memory by One
+INC  Increment Memory by One
+     zeropage      ASL oper      06    2     5
+     zeropage,X    ASL oper,X    16    2     6
+     absolute      ASL oper      0E    3     6
+     absolute,X    ASL oper,X    1E    3     7
+
+CPX  Compare Memory and Index X
+CPY  Compare Memory and Index Y
+     immidiate     CPX #oper     E0    2     2
+BIT  Test Bits in Memory with Accumulator
+     zeropage      CPX oper      E4    2     3
+     absolute      CPX oper      EC    3     4
+
+LDX  Load Index X with Memory
+     immidiate     LDX #oper     A2    2     2
+     zeropage      LDX oper      A6    2     3
+     zeropage,Y    LDX oper,Y    B6    2     4
+     absolute      LDX oper      AE    3     4
+     absolute,Y    LDX oper,Y    BE    3     4*
+
+LDY  Load Index Y with Memory
+     immidiate     LDY #oper     A0    2     2
+     zeropage      LDY oper      A4    2     3
+     zeropage,X    LDY oper,X    B4    2     4
+     absolute      LDY oper      AC    3     4
+     absolute,X    LDY oper,X    BC    3     4*
+
+STX  Store Index X in Memory
+     zeropage      STX oper      86    2     3
+     zeropage,Y    STX oper,Y    96    2     4
+     absolute      STX oper      8E    3     4
+
+STY  Sore Index Y in Memory
+     zeropage      STY oper      84    2     3
+     zeropage,X    STY oper,X    94    2     4
+     absolute      STY oper      8C    3     4
