@@ -226,69 +226,7 @@ zero_page_x_rmw		equ	zero_page_x|flag_rmw
 		dc.b	unknown
 		endm
 
-		macro	MEMORY_Hw_RMW					; \1: <insn> macro
-		clr.l	-(sp)							; FALSE (possible side effects)
-		move.l	a0,-(sp)
-		jsr		_MEMORY_HwGetByte
-		; d0.b: value
-		\1		d0
-		move.l	d0,(4,sp)						; replace FALSE with value
-		jsr		_MEMORY_HwPutByte
-		addq.l	#8,sp
-		endm
 
-		macro	GTIA_RMW						; \1: <insn> macro
-		move.l	xpos,_ANTIC_xpos
-		clr.l	-(sp)							; FALSE (possible side effects)
-		move.l	a0,-(sp)
-		jsr		_GTIA_GetByte
-		; d0.b: value
-		move.l	d0,(4,sp)						; replace FALSE with value
-		subq.l	#1,_ANTIC_xpos
-		jsr		_GTIA_PutByte
-		addq.l	#1,_ANTIC_xpos
-		move.l	(4,sp),d0						; d0.b: value
-		\1		d0								; TODO: we could access (6,sp) and (7,sp) but why...
-		move.l	d0,(4,sp)						; update value
-		jsr		_GTIA_PutByte
-		addq.l	#8,sp
-		endm
-
-		macro	POKEY_RMW						; \1: <insn> macro
-		move.l	xpos,_ANTIC_xpos
-		clr.l	-(sp)							; FALSE (possible side effects)
-		move.l	a0,-(sp)
-		jsr		_POKEY_GetByte
-		; d0.b: value
-		\1		d0
-		move.l	d0,(4,sp)						; replace FALSE with value
-		jsr		_POKEY_PutByte
-		addq.l	#8,sp
-		endm
-
-		macro	PIA_RMW							; \1: <insn> macro
-		clr.l	-(sp)							; FALSE (possible side effects)
-		move.l	a0,-(sp)
-		jsr		_PIA_GetByte
-		; d0.b: value
-		\1		d0
-		move.l	d0,(4,sp)						; replace FALSE with value
-		jsr		_PIA_PutByte
-		addq.l	#8,sp
-		endm
-
-		macro	ANTIC_RMW						; \1: <insn> macro
-		move.l	xpos,_ANTIC_xpos
-		clr.l	-(sp)							; FALSE (possible side effects)
-		move.l	a0,-(sp)
-		jsr		_ANTIC_GetByte
-		; d0.b: value
-		\1		d0
-		move.l	d0,(4,sp)						; replace FALSE with value
-		jsr		_ANTIC_PutByte
-		addq.l	#8,sp
-		move.l	_ANTIC_xpos,xpos
-		endm
 
 		macro	ABSOLUTE						; \1: <insn>, \2: reg_[AXY]
 .m68k_p_base:
@@ -324,6 +262,7 @@ zero_page_x_rmw		equ	zero_page_x|flag_rmw
 		dc.l	.m68k_data\@
 		dc.l	.m68k_data_extra\@
 .m68k_start\@:
+		move.l	xpos,_ANTIC_xpos
 		clr.l	-(sp)							; FALSE (possible side effects)
 .m68k_data\@: equ *+2
 		pea		$ffffabcd.w
@@ -332,19 +271,31 @@ zero_page_x_rmw		equ	zero_page_x|flag_rmw
 		addq.l	#8,sp
 		\1.b	d0,\2
 .m68k_end\@:
+		move.l	_ANTIC_xpos,xpos
 		endm
 
-		macro	ABSOLUTE_HW_RMW					; \1: <rol,ror,asl,lsr,inc,dec>
+		macro	ABSOLUTE_HW_RMW					; \1: <insn>
 .m68k_p_hw_rmw:
 		dc.l	.m68k_start\@
 		dc.l	.m68k_end\@
-		dc.l	.m68k_hw_rmw_data
-		dc.l	.m68k_hw_rmw_data_extra
+		dc.l	.m68k_data\@
+		dc.l	0
 .m68k_start\@:
+		move.l	xpos,_ANTIC_xpos
+		clr.l	-(sp)							; FALSE (possible side effects)
 .m68k_data\@: equ *+2
-		move.w	#$abcd,a0
-.m68k_data_extra\@: equ *+2						; this will be handled via *_rmw_table[data_extra]
-		jsr		\1_mem_rmw
+		pea		$ffffabcd.w
+		jsr		_MEMORY_HwGetByte				; d0.b: value
+		;move.l	d0,(4,sp)						; replace FALSE with old value
+		;subq.l	#1,_ANTIC_xpos
+		;jsr		_GTIA_PutByte
+		;addq.l	#1,_ANTIC_xpos
+		;move.l	(4,sp),d0						; d0.b: value
+		\1		d0
+		move.l	d0,(4,sp)						; replace FALSE with value
+		jsr		_MEMORY_HwPutByte
+		addq.l	#8,sp
+		move.l	_ANTIC_xpos,xpos
 .m68k_end\@:
 		endm
 
@@ -357,6 +308,7 @@ zero_page_x_rmw		equ	zero_page_x|flag_rmw
 .m68k_start\@:
 .m68k_data\@: equ *+2
 		move.b	\1,($abcd-$8000.w,memory)
+.m68k_end\@:
 		endm
 
 		macro	ABSOLUTE_HW_ST					; \1: reg_[AXY]
@@ -366,12 +318,15 @@ zero_page_x_rmw		equ	zero_page_x|flag_rmw
 		dc.l	.m68k_data\@
 		dc.l	.m68k_data_extra\@
 .m68k_start\@:
+		move.l	xpos,_ANTIC_xpos
 		move.l	\1,-(sp)
 .m68k_data\@: equ *+2
 		pea		$ffffabcd.w
 .m68k_data_extra\@: equ *+2						; this will be handled via hw_put_table[data_extra]
 		jsr		_MEMORY_HwPutByte
 		addq.l	#8,sp
+		move.l	_ANTIC_xpos,xpos
+.m68k_end\@:
 		endm
 
 		macro	ZPAGE							; \1: <insn>, \2: reg_[AXY]

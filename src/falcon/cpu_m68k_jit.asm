@@ -491,6 +491,18 @@ P_NULL	equ		0
 .m68k_footer_end:
 		endm
 
+		macro	ABSOLUTE
+		dc.w	no_stop
+.m68k_start:
+		DUMP
+.m68k_cycles equ *+0
+		addq.l	#1,xpos							; 2 - 8
+.m68k_end:
+		endm
+
+		; ABSOLUTE
+		; AND
+
 * 		HEADER	no_stop,absolute,P_HW,P_RMW,P_HW_RMW
 * 		AND6502	ABSOLUTE,reg_A
 * 		AND6502	ABSOLUTE_HW,reg_A
@@ -838,101 +850,6 @@ decimal_sbc:
 		LOAD_C
 		subx.b	d0,V
 		SAVE_NVZc
-		rts
-
-rol_mem_rmw:
-		MEMORY_Hw_RMW ROL_ONLY
-		rts
-ror_mem_rmw:
-		MEMORY_Hw_RMW ROR_ONLY
-		rts
-asl_mem_rmw:
-		MEMORY_Hw_RMW ASL_ONLY
-		rts
-lsr_mem_rmw:
-		MEMORY_Hw_RMW LSR_ONLY
-		rts
-inc_mem_rmw:
-		MEMORY_Hw_RMW INC_ONLY
-		rts
-dec_mem_rmw:
-		MEMORY_Hw_RMW DEC_ONLY
-		rts
-
-rol_gtia_rmw:
-		GTIA_RMW ROL_ONLY
-		rts
-ror_gtia_rmw:
-		GTIA_RMW ROR_ONLY
-		rts
-asl_gtia_rmw:
-		GTIA_RMW ASL_ONLY
-		rts
-lsr_gtia_rmw:
-		GTIA_RMW LSR_ONLY
-		rts
-inc_gtia_rmw:
-		GTIA_RMW INC_ONLY
-		rts
-dec_gtia_rmw:
-		GTIA_RMW DEC_ONLY
-		rts
-
-rol_pokey_rmw:
-		POKEY_RMW ROL_ONLY
-		rts
-ror_pokey_rmw:
-		POKEY_RMW ROR_ONLY
-		rts
-asl_pokey_rmw:
-		POKEY_RMW ASL_ONLY
-		rts
-lsr_pokey_rmw:
-		POKEY_RMW LSR_ONLY
-		rts
-inc_pokey_rmw:
-		POKEY_RMW INC_ONLY
-		rts
-dec_pokey_rmw:
-		POKEY_RMW DEC_ONLY
-		rts
-
-rol_pia_rmw:
-		PIA_RMW ROL_ONLY
-		rts
-ror_pia_rmw:
-		PIA_RMW ROR_ONLY
-		rts
-asl_pia_rmw:
-		PIA_RMW ASL_ONLY
-		rts
-lsr_pia_rmw:
-		PIA_RMW LSR_ONLY
-		rts
-inc_pia_rmw:
-		PIA_RMW INC_ONLY
-		rts
-dec_pia_rmw:
-		PIA_RMW DEC_ONLY
-		rts
-
-rol_antic_rmw:
-		ANTIC_RMW ROL_ONLY
-		rts
-ror_antic_rmw:
-		ANTIC_RMW ROR_ONLY
-		rts
-asl_antic_rmw:
-		ANTIC_RMW ASL_ONLY
-		rts
-lsr_antic_rmw:
-		ANTIC_RMW LSR_ONLY
-		rts
-inc_antic_rmw:
-		ANTIC_RMW INC_ONLY
-		rts
-dec_antic_rmw:
-		ANTIC_RMW DEC_ONLY
 		rts
 
 JIT_Invalidate:
@@ -2402,48 +2319,6 @@ hw_put_table:
 		dc.l	_POKEY_PutByte
 		dc.l	_PIA_PutByte
 		dc.l	_ANTIC_PutByte
-
-rol_rmw_table:
-		dc.l	rol_mem_rmw
-		dc.l	rol_gtia_rmw
-		dc.l	rol_pokey_rmw
-		dc.l	rol_pia_rmw
-		dc.l	rol_antic_rmw
-
-ror_rmw_table:
-		dc.l	ror_mem_rmw
-		dc.l	ror_gtia_rmw
-		dc.l	ror_pokey_rmw
-		dc.l	ror_pia_rmw
-		dc.l	ror_antic_rmw
-
-asl_rmw_table:
-		dc.l	asl_mem_rmw
-		dc.l	asl_gtia_rmw
-		dc.l	asl_pokey_rmw
-		dc.l	asl_pia_rmw
-		dc.l	asl_antic_rmw
-
-lsr_rmw_table:
-		dc.l	lsr_mem_rmw
-		dc.l	lsr_gtia_rmw
-		dc.l	lsr_pokey_rmw
-		dc.l	lsr_pia_rmw
-		dc.l	lsr_antic_rmw
-
-inc_rmw_table:
-		dc.l	inc_mem_rmw
-		dc.l	inc_gtia_rmw
-		dc.l	inc_pokey_rmw
-		dc.l	inc_pia_rmw
-		dc.l	inc_antic_rmw
-
-dec_rmw_table:
-		dc.l	dec_mem_rmw
-		dc.l	dec_gtia_rmw
-		dc.l	dec_pokey_rmw
-		dc.l	dec_pia_rmw
-		dc.l	dec_antic_rmw
 
 ; ---------------------------------------------
 		section	bss
