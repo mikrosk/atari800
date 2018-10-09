@@ -273,7 +273,7 @@ static void SetupEmulatedEnvironment(void)
 		new_videl_mode_valid = 1;
 	}
 
-	set_new_colors();	/* setup new color palette */
+	PLATFORM_PaletteUpdate();
 
 	Supexec(init_kb);	/* our keyboard routine */
 
@@ -348,30 +348,6 @@ int PLATFORM_Initialise(int *argc, char *argv[])
 	}
 
 	*argc = j;
-
-	/* recalculate color tables */
-	for (i = 0; i < 256; i++) {
-		UBYTE r = Colours_GetR(i);
-		UBYTE g = Colours_GetG(i);
-		UBYTE b = Colours_GetB(i);
-
-		/* Native:  RRRRRRrrGGGGGGgg--------BBBBBBbb
-		f030coltable[i] = (r << 24) | (g << 16) | b;*/
-		/* VsetRGB: --------RRRRRRRRGGGGGGGGBBBBBBBB */
-		f030coltable[i] = (r << 16) | (g << 8) | b;
-		if (sv) {
-			coltable[i][0] = r * 1000 / 255;
-			coltable[i][1] = g * 1000 / 255;
-			coltable[i][2] = b * 1000 / 255;
-		} else {
-			/* not sure what's going on here, the VDI sets wrong colours if
-			 * code above is used
-			 */
-			coltable[i][0] = (r/4) * 1000 / 63;
-			coltable[i][1] = (g/4) * 1000 / 63;
-			coltable[i][2] = (b/4) * 1000 / 63;
-		}
-	}
 
 	/* check for VIDEL hardware */
 	if (Getcookie(C__VDO, &video_hardware) == C_NOTFOUND)
@@ -1364,6 +1340,43 @@ void PLATFORM_Sleep(double s)
 double PLATFORM_Time(void)
 {
 	return clock() * (1.0 / CLOCKS_PER_SEC);
+}
+
+/* -------------------------------------------------------------------------- */
+
+void PLATFORM_PaletteUpdate(void)
+{
+	int i;
+
+	/* recalculate color tables */
+	for (i = 0; i < 256; i++) {
+		UBYTE r = Colours_GetR(i);
+		UBYTE g = Colours_GetG(i);
+		UBYTE b = Colours_GetB(i);
+
+		if (reprogram_VIDEL) {
+			/*
+			 * Native:  RRRRRRrrGGGGGGgg--------BBBBBBbb
+			 * VsetRGB: --------RRRRRRRRGGGGGGGGBBBBBBBB
+			 */
+			f030coltable[i] = (r << 16) | (g << 8) | b;
+		} else {
+			if (sv) {
+				coltable[i][0] = r * 1000 / 255;
+				coltable[i][1] = g * 1000 / 255;
+				coltable[i][2] = b * 1000 / 255;
+			} else {
+				/* not sure what's going on here, the VDI sets wrong colours if
+				 * code above is used
+				 */
+				coltable[i][0] = (r/4) * 1000 / 63;
+				coltable[i][1] = (g/4) * 1000 / 63;
+				coltable[i][2] = (b/4) * 1000 / 63;
+			}
+		}
+	}
+
+	set_new_colors();
 }
 
 /* -------------------------------------------------------------------------- */

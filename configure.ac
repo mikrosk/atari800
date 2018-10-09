@@ -306,6 +306,7 @@ dnl BeOS has a real issue with redundant-decls
     falcon)
         AC_DEFINE(SUPPORTS_PLATFORM_SLEEP,1,[Platform-specific sleep function.])
         AC_DEFINE(SUPPORTS_PLATFORM_TIME,1,[Platform-specific time function.])
+        AC_DEFINE(SUPPORTS_PLATFORM_PALETTEUPDATE,1,[Update the Palette if it changed.])
         AC_DEFINE(FALCON,1,[Target: Atari Falcon system.])
         AC_CHECK_LIB(gem, appl_init)
         ;;
