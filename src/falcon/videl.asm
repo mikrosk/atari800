@@ -209,7 +209,6 @@ _load_r:
 *	Save Videl registers				*
 *-------------------------------------------------------*
 _save_r:
-	movem.l		d2/a2,-(sp)
 *-------------------------------------------------------*
 *	Get Modecode					*
 *-------------------------------------------------------*
@@ -278,7 +277,6 @@ _save_r:
 *	Restore exceptions				*
 *-------------------------------------------------------*
 	move.w		(sp)+,sr
-	movem.l		(sp)+,d2/a2
 	rts
 
 *-------------------------------------------------------*
@@ -320,8 +318,6 @@ videl_re_sync:
 	rts
 
 _store_palette:
-	movem.l		d2-d7/a2-a6,-(sp)
-
 	lea		$ffff9800.w,a0			; save falcon palette
 	lea		save_pal,a1			;
 	move.w		#256-1,d7			;
@@ -331,13 +327,9 @@ _store_palette:
 
 	movem.l		$ffff8240.w,d0-d7		; save st palette
 	movem.l		d0-d7,(a1)			;
-
-	movem.l		(sp)+,d2-d7/a2-a6
 	rts
 
 _restore_palette
-	movem.l		d2-d7/a2-a6,-(sp)
-
 	lea		$ffff9800.w,a0			; restore falcon palette
 	lea		save_pal,a1			;
 	move.w		#256-1,d7			;
@@ -346,8 +338,6 @@ _restore_palette
 
 	movem.l		(a1),d0-d7			; restore st palette
 	movem.l		d0-d7,$ffff8240.w		;
-
-	movem.l		(sp)+,d2-d7/a2-a6
 	rts
 
 _set_falcon_palette:
