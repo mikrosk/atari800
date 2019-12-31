@@ -142,6 +142,7 @@ unsigned char keybuf[KEYBUF_SIZE];
 int kbhead = 0;
 
 static UBYTE *Original_Phys_base;
+static UBYTE *Original_Log_base;
 static UWORD original_videl_settings[26];
 static UWORD mode336x240_vga[26]= {
 	0x0133, 0x0001, 0x3b00, 0x0150, 0x00f0, 0x0008, 0x0002, 0x0010, \
@@ -180,48 +181,66 @@ static short int coltable[256][3], coltable_backup[256][3];
 /* -------------------------------------------------------------------------- */
 
 static ULONG old_frclock;
-#define SCREEN_BUFFERS	2
-static UBYTE* new_videobases[SCREEN_BUFFERS];
-#define new_videobase new_videobases[0]	/* work address (pointer to logical buffer) */
+#define SCREEN_BUFFERS	3
 
-static void SwapScreen()
+static UBYTE* screen_work;	/* rendered into, never shown */
+static UBYTE* screen_queued;	/* in screenptr, latched at the next VBL */
+static UBYTE* screen_displayed;	/* shown until screen_queued is latched */
+static ULONG queued_vbclock;
+static size_t screen_offset;	/* SuperVidel centering, in pixels */
+
+static void SwapScreen(void)
 {
-	ULONG new_frclock;
-	int i;
 	UBYTE* tmp_videobase;
-	size_t offset;
-
-	/* always wait at least one VBL before swapping the screen */
-	for (new_frclock = (ULONG)get_sysvar((void*)_frclock);
-		 new_frclock == old_frclock;
-		 new_frclock = (ULONG)get_sysvar((void*)_frclock));
-	old_frclock = new_frclock;
+	void* ssp;
 
 	if (delta_screen || SCREEN_BUFFERS < 2) {
-		/* wait for VBL only */
+		/* wait for VBL (Vsync() is too slow for some reason) */
+		ULONG new_frclock;
+		for (new_frclock = (ULONG)get_sysvar((void*)_frclock);
+			 new_frclock == old_frclock;
+			 new_frclock = (ULONG)get_sysvar((void*)_frclock));
+		old_frclock = new_frclock;
 		return;
 	}
 
-	/* set new physical address */
-	offset = sv ? (Screen_WIDTH - 336) / 2 : 0;	/* in pixels */
-	VsetScreen(SCR_NOCHANGE, new_videobase + offset, SCR_NOCHANGE, SCR_NOCHANGE);
+	/* wait until the queued frame is on screen */
+	while ((ULONG)get_sysvar((void*)_vbclock) == queued_vbclock);
 
-	/* cycle screens */
-	tmp_videobase = new_videobases[0];
-	for (i = 0; i < SCREEN_BUFFERS-1; ++i) {
-		new_videobases[i] = new_videobases[i+1];
+	ssp = (void*)Super(SUP_SET);
+
+	*vblsem = 0;
+
+	if (SCREEN_BUFFERS == 2) {
+		/* double buffering: show the finished frame, render into the other one */
+		tmp_videobase = screen_displayed;
+		screen_displayed = screen_work;
+		screen_work = tmp_videobase;
+		screen_queued = screen_displayed;
+	} else {
+		/* the queued buffer is on screen, the previous one is free */
+		tmp_videobase = screen_displayed;
+		screen_displayed = screen_queued;
+		screen_queued = screen_work;
+		screen_work = tmp_videobase;
 	}
-	new_videobases[SCREEN_BUFFERS-1] = tmp_videobase;
+
+	*screenptr = (unsigned long)(screen_queued + screen_offset);
+	queued_vbclock = *_vbclock;
+
+	*vblsem = 1;
+
+	SuperToUser(ssp);
 
 	if (sv && !UI_is_active) {
-		Screen_atari = (ULONG*)new_videobase;
+		Screen_atari = (ULONG*)screen_work;
 	}
 }
 
 static void* NewLogbase()
 {
 	if (reprogram_VIDEL)
-		return new_videobase;
+		return screen_work;
 	else
 		return Logbase();
 }
@@ -267,15 +286,14 @@ static int setup_done;
 static void SetupEmulatedEnvironment(void)
 {
 	if (reprogram_VIDEL) {
-		size_t offset;
-
 		/* save original VIDEL settings */
 		p_str_p = original_videl_settings;
 		Supexec(save_r);
 
 		/* set new video resolution by direct VIDEL programming */
-		offset = sv ? (Screen_WIDTH - 336) / 2 : 0;	/* in pixels */
-		(void)VsetScreen(SCR_NOCHANGE, new_videobases[delta_screen ? 0 : SCREEN_BUFFERS-1] + offset, SCR_NOCHANGE, SCR_NOCHANGE);
+		screen_offset = sv ? (Screen_WIDTH - 336) / 2 : 0;	/* in pixels */
+		queued_vbclock = (ULONG)get_sysvar((void*)_vbclock) - 1;
+		(void)VsetScreen(SCR_NOCHANGE, (delta_screen ? screen_work : screen_queued) + screen_offset, SCR_NOCHANGE, SCR_NOCHANGE);
 		p_str_p = vga ? (vga50 ? mode336x240_vga50 : mode336x240_vga) : mode336x240_rgb;
 		Supexec(load_r);
 		new_videl_mode_valid = 1;
@@ -296,11 +314,14 @@ static void ShutdownEmulatedEnvironment(void)
 		return;
 
 	if (new_videl_mode_valid) {
+		/* stop the VBL from re-latching the emulation buffer */
+		set_sysvar_to_long((void*)screenptr, 0);
 		/* restore original VIDEL mode */
 		p_str_p = original_videl_settings;
 		Supexec(load_r);
 		new_videl_mode_valid = 0;
-		(void)VsetScreen(SCR_NOCHANGE, Original_Phys_base, SCR_NOCHANGE, SCR_NOCHANGE);
+		/* screenptr clobbers the logical base, restore it as well */
+		(void)VsetScreen(Original_Log_base, Original_Phys_base, SCR_NOCHANGE, SCR_NOCHANGE);
 	}
 
 	restore_original_colors();
@@ -433,6 +454,7 @@ int PLATFORM_Initialise(int *argc, char *argv[])
 
 	if (force_videl && video_hw == F030) {	/* we may switch VIDEL directly */
 		int buffers = (delta_screen && !sv) ? 1 : SCREEN_BUFFERS;
+		NOVA_double_size = FALSE;	/* -double applies to the VDI output only */
 		vramw = screenw = sv ? Screen_WIDTH : 336;
 		vramh = screenh = Screen_HEIGHT;
 
@@ -441,21 +463,21 @@ int PLATFORM_Initialise(int *argc, char *argv[])
 			return FALSE;
 		}
 
-		new_videobases[0] = (UBYTE*)(((ULONG)new_videoram_unaligned + 15) & ~15);
-		for (i = 1; i < buffers; ++i) {
-			new_videobases[i] = new_videobases[i-1] + vramw*vramh;
-		}
-		memset(new_videobases[0], 0, buffers*vramw*vramh);	/* all buffers */
+		screen_work = (UBYTE*)(((ULONG)new_videoram_unaligned + 15) & ~15);
+		/* with two buffers screen_queued and screen_displayed are the same */
+		screen_displayed = screen_work + (buffers > 1 ? vramw*vramh : 0);
+		screen_queued = screen_work + (buffers-1)*vramw*vramh;	/* shown by SetupEmulatedEnvironment */
+		memset(screen_work, 0, buffers*vramw*vramh);	/* all buffers */
 
 		if (sv) {
 			delta_screen = FALSE;
 
 			/* use SuperVidel's memory instead of ST RAM */
-			for (i = 0; i < buffers; ++i) {
-				new_videobases[i] = (UBYTE*)((ULONG)new_videobases[i] | 0xA0000000);
-			}
+			screen_work = (UBYTE*)((ULONG)screen_work | 0xA0000000);
+			screen_queued = (UBYTE*)((ULONG)screen_queued | 0xA0000000);
+			screen_displayed = (UBYTE*)((ULONG)screen_displayed | 0xA0000000);
 			/* use direct rendering */
-			Screen_atari = (ULONG*)new_videobase;
+			Screen_atari = (ULONG*)screen_work;
 			if (vga50) {
 				/* use the new chunky mode */
 				mode336x240_vga50[7] |= 0x1000;
@@ -568,6 +590,7 @@ int PLATFORM_Initialise(int *argc, char *argv[])
 #endif
 
 	Original_Phys_base = Physbase();
+	Original_Log_base = Logbase();
 
 	key_tab = Keytbl(-1, -1, -1);
 
@@ -795,11 +818,11 @@ void PLATFORM_DisplayScreen(void)
 				memcpy(Screen_ui, Screen_atari, sizeof(Screen_ui));
 				Screen_atari = Screen_ui;
 			} else {
-				memcpy(new_videobase, Screen_ui, sizeof(Screen_ui));
+				memcpy(screen_work, Screen_ui, sizeof(Screen_ui));
 			}
 		} else {
 			if (Screen_ui == Screen_atari) {
-				Screen_atari = (ULONG*)new_videobase;
+				Screen_atari = (ULONG*)screen_work;
 				memcpy(Screen_atari, Screen_ui, sizeof(Screen_ui));
 			}
 		}
