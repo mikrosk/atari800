@@ -181,6 +181,7 @@ static short int coltable[256][3], coltable_backup[256][3];
 /* -------------------------------------------------------------------------- */
 
 static ULONG old_frclock;
+static ULONG old_v_bas_ad;
 #define SCREEN_BUFFERS	3
 static UBYTE* new_videobases[SCREEN_BUFFERS];
 #define new_videobase new_videobases[0]	/* work address (pointer to logical buffer) */
@@ -191,21 +192,27 @@ static void SwapScreen()
 	int i;
 	UBYTE* tmp_videobase;
 	size_t offset;
-
-	/* always wait at least one VBL before swapping the screen */
-	for (new_frclock = (ULONG)get_sysvar((void*)_frclock);
-		 new_frclock == old_frclock;
-		 new_frclock = (ULONG)get_sysvar((void*)_frclock));
-	old_frclock = new_frclock;
-
+	
+	if (delta_screen || SCREEN_BUFFERS < 2 || (ULONG)get_sysvar((void*)_v_bas_ad) == old_v_bas_ad) {
+		/* wait for VBL (Vsync() is too slow for some reason) */
+		for (new_frclock = (ULONG)get_sysvar((void*)_frclock);
+			new_frclock == old_frclock;
+			new_frclock = (ULONG)get_sysvar((void*)_frclock));
+		old_frclock = new_frclock;
+	}
+	
 	if (delta_screen || SCREEN_BUFFERS < 2) {
 		/* wait for VBL only */
 		return;
 	}
+	
+	/* _vbas_ad is set after screenptr has been set */
+	old_v_bas_ad = (ULONG)get_sysvar((void*)_v_bas_ad);
 
 	/* set new physical address */
 	offset = sv ? (Screen_WIDTH - 336) / 2 : 0;	/* in pixels */
-	VsetScreen(SCR_NOCHANGE, new_videobase + offset, SCR_NOCHANGE, SCR_NOCHANGE);
+	/* screenptr = 0x45e, set in the next VBL (VsetScreen() sets it immediately) */
+	set_sysvar_to_long((void*)screenptr, (long)(new_videobase + offset));
 
 	/* cycle screens */
 	tmp_videobase = new_videobases[0];
@@ -301,6 +308,7 @@ static void ShutdownEmulatedEnvironment(void)
 		p_str_p = original_videl_settings;
 		Supexec(load_r);
 		new_videl_mode_valid = 0;
+		set_sysvar_to_long((void*)screenptr, 0);
 		(void)VsetScreen(SCR_NOCHANGE, Original_Phys_base, SCR_NOCHANGE, SCR_NOCHANGE);
 	}
 
