@@ -30,8 +30,7 @@ libatari800_a_SOURCES = \
 	libatari800/exit.c \
 	libatari800/input.c libatari800/input.h \
 	libatari800/video.c libatari800/video.h \
-	libatari800/statesav.c libatari800/statesav.h \
-	libatari800/sound.c libatari800/sound.h
+	libatari800/statesav.c libatari800/statesav.h
 noinst_PROGRAMS += libatari800_test guess_settings
 libatari800_test_SOURCES = libatari800/libatari800_test.c
 libatari800_test_CFLAGS = -Ilibatari800
@@ -118,9 +117,6 @@ atari800_SOURCES += sound.c sound_oss.c
 endif
 if WITH_SOUND_WIN
 atari800_SOURCES += win32/sound.c
-endif
-if WITH_SOUND_LIBATARI800
-atari800_SOURCES += sound.c libatari800/sound.c libatari800/sound.h
 endif
 if WANT_POKEYREC
 atari800_SOURCES += pokeyrec.c pokeyrec.h

@@ -38,7 +38,6 @@
 #include "platform.h"
 #include "memory.h"
 #include "screen.h"
-#include "../sound.h"
 #include "util.h"
 #include "videomode.h"
 #include "sio.h"
@@ -49,7 +48,6 @@
 #include "libatari800/init.h"
 #include "libatari800/input.h"
 #include "libatari800/video.h"
-#include "libatari800/sound.h"
 #include "libatari800/statesav.h"
 
 /* mainloop includes */
@@ -66,6 +64,7 @@
 
 int PLATFORM_Configure(char *option, char *parameters)
 {
+	extern int LIBATARI800_ReadConfig(char *option, char *parameters);
 	return LIBATARI800_ReadConfig(option, parameters);
 }
 
@@ -94,7 +93,6 @@ int PLATFORM_Initialise(int *argc, char *argv[])
 	}
 
 	if (!LIBATARI800_Video_Initialise(argc, argv)
-		|| !Sound_Initialise(argc, argv)
 		|| !LIBATARI800_Input_Initialise(argc, argv))
 		return FALSE;
 
@@ -133,7 +131,6 @@ void LIBATARI800_Frame(void)
 	Screen_DrawDiskLED();
 	Screen_Draw1200LED();
 	POKEY_Frame();
-	Sound_Update();
 	Atari800_nframes++;
 }
 

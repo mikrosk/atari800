@@ -40,14 +40,12 @@
 #include "memory.h"
 #include "screen.h"
 #include "sio.h"
-#include "../sound.h"
 #include "util.h"
 #include "libatari800/main.h"
 #include "libatari800/cpu_crash.h"
 #include "libatari800/init.h"
 #include "libatari800/input.h"
 #include "libatari800/video.h"
-#include "libatari800/sound.h"
 #include "libatari800/statesav.h"
 
 
@@ -318,76 +316,6 @@ UBYTE *libatari800_get_screen_ptr()
 }
 
 
-/** Return pointer to sound data
- *
- * If sound is used, each emulated frame will fill the sound buffer with samples
- * at the configured audio sample rate.
- *
- * Because the emulation runs at a non-integer frame rate (approximately 59.923
- * frames per second in NTSC, 49.861 fps in PAL), the number of samples is not a
- * constant for all frames -- it can vary by one sample per frame. For example,
- * in NTSC with a sample rate of 44.1KHz, most frames will contain 736 samples,
- * but one out of about every 19 frames will contain 735 samples.
- *
- * Use the function \a libatari800_get_sound_buffer_len to determine usable size
- * of the sound buffer.
- *
- * @returns pointer to the beginning of the sound sample buffer
- */
-UBYTE *libatari800_get_sound_buffer()
-{
-	return (UBYTE *)LIBATARI800_Sound_array;
-}
-
-
-/** Return the usable size of the sound buffer.
- *
- * @returns number of bytes of valid data in the sound buffer
- */
-int libatari800_get_sound_buffer_len() {
-	return (int)sound_array_fill;
-}
-
-
-/** Return the maximum size of the sound buffer.
- *
- * @returns number of bytes allocated in sound buffer
- */
-
-int libatari800_get_sound_buffer_allocated_size() {
-	return (int)sound_hw_buffer_size;
-}
-
-
-/** Return the audio sample rate in samples per second
- *
- * @returns the audio sample rate, typically 44100 or 48000
- */
-int libatari800_get_sound_frequency() {
-	return (int)Sound_out.freq;
-}
-
-
-/** Return the number of audio channels
- *
- * @retval 1 mono
- * @retval 2 stereo
- */
-int libatari800_get_num_sound_channels() {
-	return (int)Sound_out.channels;
-}
-
-
-/** Return the sample size in bytes of each audio sample
- *
- * @retval 1 8-bit audio
- * @retval 2 16-bit audio
- */
-int libatari800_get_sound_sample_size() {
-	return Sound_out.sample_size;
-}
-
-
 /** Return the video frame rate
  *
  * It is important to note that libatari800 can run as fast as the host computer will
@@ -455,7 +383,6 @@ void libatari800_get_current_state(emulator_state_t *state)
 	LIBATARI800_StateSave(state->state, &state->tags);
 	state->flags.selftest_enabled = MEMORY_selftest_enabled;
 	state->flags.nframes = (ULONG)Atari800_nframes;
-	state->flags.sample_residual = (ULONG)(0xffffffff * sample_residual);
 }
 
 
@@ -475,7 +402,6 @@ void libatari800_restore_state(emulator_state_t *state)
 	LIBATARI800_StateLoad(state->state);
 	MEMORY_selftest_enabled = state->flags.selftest_enabled;
 	Atari800_nframes = state->flags.nframes;
-	sample_residual = (double)state->flags.sample_residual / (double)0xffffffff;
 }
 
 
