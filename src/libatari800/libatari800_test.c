@@ -26,7 +26,7 @@ int main(int argc, char **argv) {
 
 	/* force the 400/800 OS to get the Memo Pad */
 	char *test_args[] = {
-		"-atari",
+		"tony.xex",
 		NULL,
 	};
 	libatari800_init(-1, test_args);
@@ -57,7 +57,7 @@ int main(int argc, char **argv) {
 
 	VsetScreen(SCR_NOCHANGE, atari_screen, SCR_NOCHANGE, SCR_NOCHANGE);
 
-	while (libatari800_get_frame_number() < 200) {
+	for (;;) {
 #if 0
 		libatari800_get_current_state(&state);
 		cpu = (cpu_state_t *)&state.state[state.tags.cpu];  /* order: A,SR,SP,X,Y */
@@ -65,17 +65,8 @@ int main(int argc, char **argv) {
 		printf("frame %d: A=%02x X=%02x Y=%02x SP=%02x SR=%02x PC=%04x\n", libatari800_get_frame_number(), cpu->A, cpu->X, cpu->Y, cpu->P, cpu->S, pc->PC);
 #endif
 		libatari800_next_frame(&input);
-		if (libatari800_get_frame_number() > 100) {
-			debug_screen();
-			input.keychar = 'A';
-		}
+		debug_screen();
 	}
-#if 0
-	libatari800_get_current_state(&state);
-	cpu = (cpu_state_t *)&state.state[state.tags.cpu];  /* order: A,SR,SP,X,Y */
-	pc = (pc_state_t *)&state.state[state.tags.pc];
-	printf("frame %d: A=%02x X=%02x Y=%02x SP=%02x SR=%02x PC=%04x\n", libatari800_get_frame_number(), cpu->A, cpu->X, cpu->Y, cpu->P, cpu->S, pc->PC);
-#endif
 
 	libatari800_exit();
 }
