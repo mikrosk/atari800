@@ -35,7 +35,7 @@
 /* #undef CLOSEDIR_VOID */
 
 /* Define to allow console sound (keyboard clicks). */
-#define CONSOLE_SOUND 1
+/* #undef CONSOLE_SOUND */
 
 /* Define to activate crash menu after CIM instruction. */
 /* #undef CRASH_MENU */
@@ -354,7 +354,7 @@
 /* #undef IDE */
 
 /* Define to allow sound interpolation. */
-#define INTERPOLATE_SOUND 1
+/* #undef INTERPOLATE_SOUND */
 
 /* Target: Atari800 as a library. */
 #define LIBATARI800 1
@@ -403,7 +403,7 @@
 /* #undef NEW_CYCLE_EXACT */
 
 /* Define to use nonlinear POKEY mixing. */
-#define NONLINEAR_MIXING 1
+/* #undef NONLINEAR_MIXING */
 
 /* Define to 1 if your C compiler doesn't accept -c and -o together. */
 /* #undef NO_MINUS_C_MINUS_O */
@@ -499,13 +499,13 @@
 /* #undef SHM */
 
 /* Define to activate sound support. */
-/* #define SOUND 1 */
+/* #undef SOUND */
 
 /* Platform updates sound buffer by callback function. */
 /* #undef SOUND_CALLBACK */
 
 /* Use new sound API. */
-/* #define SOUND_THIN_API 1 */
+/* #undef SOUND_THIN_API */
 
 /* Define to 1 if all of the C89 standard headers exist (not just the ones
    required in a freestanding environment). This macro is provided for
@@ -513,7 +513,7 @@
 #define STDC_HEADERS 1
 
 /* Define to allow stereo sound. */
-/* #define STEREO_SOUND 1 */
+/* #undef STEREO_SOUND */
 
 /* Can change video modes on the fly. */
 /* #undef SUPPORTS_CHANGE_VIDEOMODE */
@@ -583,10 +583,10 @@
 /* #undef VIDEO_RECORDING */
 
 /* Define to emulate the Alien Group Voice Box. */
-/* #define VOICEBOX 1 */
+/* #undef VOICEBOX */
 
 /* Define to allow volume only sound. */
-/* #define VOL_ONLY_SOUND 1 */
+/* #undef VOL_ONLY_SOUND */
 
 /* Define WORDS_BIGENDIAN to 1 if your processor stores words with the most
    significant byte first (like Motorola and SPARC, unlike Intel). */

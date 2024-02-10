@@ -941,22 +941,7 @@ AC_ARG_WITH([sound],
     ],
     [with_sound=check])
 
-if [[ "$a8_target" = libatari800 ]]; then
-    if [[ "$with_sound" = check -o "$with_sound" = yes ]]; then
-        with_sound=libatari800
-        WANT_SOUND_THIN_API=yes
-        WANT_SOUND_CALLBACK=no
-        WANT_CONSOLE_SOUND=yes
-        WANT_SERIO_SOUND=yes
-        WANT_VOL_ONLY_SOUND=no
-
-        WANT_SYNCHRONIZED_SOUND=no
-        dnl workaround for WANT_SYNCHRONIZED_SOUND being ignored by A8_OPTION macro
-        enable_synchronized_sound=no
-    else
-        AC_MSG_ERROR([--with-audio option not needed to build libatari800!])
-    fi
-elif [[ "$a8_target" != "ps2" -a "$a8_target" != "android" ]]; then
+if [[ "$a8_target" != "ps2" -a "$a8_target" != "android" ]]; then
     if [[ "$with_sound" != no ]]; then
         if [[ "$with_sound" = check -o "$with_sound" = yes -o "$with_sound" = javanvm ]]; then
             if [[ "$a8_host" = javanvm ]]; then
