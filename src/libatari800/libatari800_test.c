@@ -33,10 +33,6 @@ int main(int argc, char **argv) {
 
 	libatari800_clear_input_array(&input);
 
-	// emulator_state_t state;
-	// cpu_state_t *cpu;
-	// pc_state_t *pc;
-
 	printf("emulation: fps=%f\n", libatari800_get_fps());
 
 	atari_screen = (UBYTE *)Mxalloc(ATARI_WIDTH * ATARI_HEIGHT, MX_STRAM);
@@ -59,6 +55,10 @@ int main(int argc, char **argv) {
 
 	for (;;) {
 #if 0
+		emulator_state_t state;
+		cpu_state_t *cpu;
+		pc_state_t *pc;
+
 		libatari800_get_current_state(&state);
 		cpu = (cpu_state_t *)&state.state[state.tags.cpu];  /* order: A,SR,SP,X,Y */
 		pc = (pc_state_t *)&state.state[state.tags.pc];
