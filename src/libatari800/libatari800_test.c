@@ -5,22 +5,25 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 #include "libatari800.h"
 
 #ifndef LINUX
-void asm_c2p1x1_8_rect(const UBYTE *pChunky, const UBYTE *pChunkyEnd, ULONG chunkyWidth, ULONG chunkyPitch, UBYTE *pScreen, ULONG screenPitch);
-
 #define ATARI_WIDTH 320
 #define ATARI_HEIGHT 192
-static UBYTE* atari_screen;
+static UWORD* atari_screen;
 
 static void debug_screen()
 {
-	const UBYTE *screen = libatari800_get_screen_ptr();
-	const UBYTE *screen_start = screen + ((240 - ATARI_HEIGHT) / 2) * 384 + ((384  - ATARI_WIDTH) / 2);
-	const UBYTE *screen_end = screen_start + (ATARI_HEIGHT - 1) * 384 + ATARI_WIDTH;
-	asm_c2p1x1_8_rect(screen_start, screen_end, 320, 384, atari_screen, 320);
+	const UWORD *screen = (UWORD *)(libatari800_get_main_memory_ptr() + 0xE100);
+	UWORD* p = atari_screen;
+	for (int j = 0; j < ATARI_HEIGHT; j++) {
+		for (int i = 0; i < ATARI_WIDTH / 16; i++) {
+			*p = *screen++;
+			p+= 4;
+		}
+	}
 }
 #endif
 
@@ -40,26 +43,24 @@ int main(int argc, char **argv) {
 	printf("emulation: fps=%f\n", libatari800_get_fps());
 
 #ifndef LINUX
-	atari_screen = (UBYTE *)Mxalloc(ATARI_WIDTH * ATARI_HEIGHT, MX_STRAM);
+	atari_screen = (UWORD *)Mxalloc(ATARI_WIDTH * ATARI_HEIGHT * 4 / 8, MX_STRAM);
 
-	VsetMode(PAL | TV | COL40 | BPS8);	// 320x200
+	VsetMode(PAL | TV | COL40 | BPS4);	// 320x200
 
 	extern int Colours_table[256];
 #define Colours_GetR(x) ((UBYTE) (Colours_table[x] >> 16))
 #define Colours_GetG(x) ((UBYTE) (Colours_table[x] >> 8))
 #define Colours_GetB(x) ((UBYTE) Colours_table[x])
-	_RGB palette[256];
-	for (int i = 0; i < 256; i++) {
-		palette[i].red = Colours_GetR(i);
-		palette[i].green = Colours_GetG(i);
-		palette[i].blue = Colours_GetB(i);
-	}
-	VsetRGB(0, 256, palette);
+	_RGB background = { .red = Colours_GetR(0x60), .green = Colours_GetG(0x60), .blue = Colours_GetB(0x60) };
+	VsetRGB(0, 1, &background);
+	_RGB foreground = { .red = Colours_GetR(0x6e), .green = Colours_GetG(0x6e), .blue = Colours_GetB(0x6e) };
+	VsetRGB(1, 1, &foreground);
 
 	VsetScreen(SCR_NOCHANGE, atari_screen, SCR_NOCHANGE, SCR_NOCHANGE);
 #endif
 
 	for (;;) {
+		clock_t beg = clock();
 #if 0
 		emulator_state_t state;
 		cpu_state_t *cpu;
@@ -74,6 +75,10 @@ int main(int argc, char **argv) {
 #ifndef LINUX
 		debug_screen();
 #endif
+		clock_t end = clock();
+
+		int vbls = (end - beg) * 50 / (int)CLOCKS_PER_SEC;
+		printf("frame took: %d VBLs (%d FPS)\n", vbls, 50 / vbls);
 	}
 
 	libatari800_exit();

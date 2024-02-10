@@ -2849,6 +2849,8 @@ static int scanlines_to_curses_display = 0;
 /* This function emulates one frame drawing screen at Screen_atari */
 void ANTIC_Frame(int draw_display)
 {
+	draw_display = 0;
+
 	static const UBYTE mode_type[32] = {
 		NORMAL0, NORMAL0, NORMAL0, NORMAL0, NORMAL0, NORMAL0, NORMAL1, NORMAL1,
 		NORMAL2, NORMAL2, NORMAL1, NORMAL1, NORMAL1, NORMAL0, NORMAL0, NORMAL0,
