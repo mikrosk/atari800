@@ -30,7 +30,8 @@ libatari800_a_SOURCES = \
 	libatari800/exit.c \
 	libatari800/input.c libatari800/input.h \
 	libatari800/video.c libatari800/video.h \
-	libatari800/statesav.c libatari800/statesav.h
+	libatari800/statesav.c libatari800/statesav.h \
+        libatari800/atari_c2p.asm
 noinst_PROGRAMS += libatari800_test guess_settings
 libatari800_test_SOURCES = libatari800/libatari800_test.c
 libatari800_test_CFLAGS = -Ilibatari800

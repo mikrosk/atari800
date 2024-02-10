@@ -3,11 +3,15 @@
 
 #include "libatari800.h"
 
+void asm_c2p1x1_8(const UBYTE *pChunky, const UBYTE *pChunkyEnd, UBYTE *pScreen);
+
 static void debug_screen()
 {
 	/* print out portion of screen, assuming graphics 0 display list */
 	unsigned char *screen = libatari800_get_screen_ptr();
 	int x, y;
+
+	asm_c2p1x1_8(screen, screen, screen);
 
 	screen += 384 * 24 + 24;
 	for (y = 0; y < 32; y++) {

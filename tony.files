@@ -153,6 +153,7 @@ src/javanvm/video.c
 src/javanvm/video.h
 src/joycfg.c
 src/libatari800/api.c
+src/libatari800/atari_c2p.asm
 src/libatari800/cpu_crash.h
 src/libatari800/exit.c
 src/libatari800/guess_settings.c

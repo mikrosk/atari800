@@ -255,7 +255,7 @@ AC_DEFUN([A8_ADD_INCLUDE_PATH], [
 
 AC_DEFUN([AM_PROG_AS], []) dnl dummy to make automake happy, since vasm is used instead
 CCAS=vasm
-CCASFLAGS="-quiet -devpac -opt-allbra -Faout"
+CCASFLAGS="-quiet -opt-allbra -Felf"
 
 a8_use_sdl=no
 dnl Check if SDL library exists. If it's found, set a8_use_sdl to yes and AC_DEFINE the SDL symbol.
