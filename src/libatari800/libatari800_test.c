@@ -1,11 +1,14 @@
+#ifndef LINUX
 #include <mint/falcon.h>
 #include <mint/osbind.h>
+#endif
 
 #include <stdio.h>
 #include <string.h>
 
 #include "libatari800.h"
 
+#ifndef LINUX
 void asm_c2p1x1_8_rect(const UBYTE *pChunky, const UBYTE *pChunkyEnd, ULONG chunkyWidth, ULONG chunkyPitch, UBYTE *pScreen, ULONG screenPitch);
 
 #define ATARI_WIDTH 320
@@ -19,6 +22,7 @@ static void debug_screen()
 	const UBYTE *screen_end = screen_start + (ATARI_HEIGHT - 1) * 384 + ATARI_WIDTH;
 	asm_c2p1x1_8_rect(screen_start, screen_end, 320, 384, atari_screen, 320);
 }
+#endif
 
 
 int main(int argc, char **argv) {
@@ -35,6 +39,7 @@ int main(int argc, char **argv) {
 
 	printf("emulation: fps=%f\n", libatari800_get_fps());
 
+#ifndef LINUX
 	atari_screen = (UBYTE *)Mxalloc(ATARI_WIDTH * ATARI_HEIGHT, MX_STRAM);
 
 	VsetMode(PAL | TV | COL40 | BPS8);	// 320x200
@@ -52,6 +57,7 @@ int main(int argc, char **argv) {
 	VsetRGB(0, 256, palette);
 
 	VsetScreen(SCR_NOCHANGE, atari_screen, SCR_NOCHANGE, SCR_NOCHANGE);
+#endif
 
 	for (;;) {
 #if 0
@@ -65,7 +71,9 @@ int main(int argc, char **argv) {
 		printf("frame %d: A=%02x X=%02x Y=%02x SP=%02x SR=%02x PC=%04x\n", libatari800_get_frame_number(), cpu->A, cpu->X, cpu->Y, cpu->P, cpu->S, pc->PC);
 #endif
 		libatari800_next_frame(&input);
+#ifndef LINUX
 		debug_screen();
+#endif
 	}
 
 	libatari800_exit();
