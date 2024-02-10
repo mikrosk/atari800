@@ -6,15 +6,18 @@
 
 #include "libatari800.h"
 
-void asm_c2p1x1_8(const UBYTE *pChunky, const UBYTE *pChunkyEnd, UBYTE *pScreen);
+void asm_c2p1x1_8_rect(const UBYTE *pChunky, const UBYTE *pChunkyEnd, ULONG chunkyWidth, ULONG chunkyPitch, UBYTE *pScreen, ULONG screenPitch);
 
+#define ATARI_WIDTH 320
+#define ATARI_HEIGHT 192
 static UBYTE* atari_screen;
 
 static void debug_screen()
 {
-	/* print out portion of screen, assuming graphics 0 display list */
-	unsigned char *screen = libatari800_get_screen_ptr();
-	asm_c2p1x1_8(screen, screen + 384*240, atari_screen);
+	const UBYTE *screen = libatari800_get_screen_ptr();
+	const UBYTE *screen_start = screen + ((240 - ATARI_HEIGHT) / 2) * 384 + ((384  - ATARI_WIDTH) / 2);
+	const UBYTE *screen_end = screen_start + (ATARI_HEIGHT - 1) * 384 + ATARI_WIDTH;
+	asm_c2p1x1_8_rect(screen_start, screen_end, 320, 384, atari_screen, 320);
 }
 
 
@@ -30,15 +33,15 @@ int main(int argc, char **argv) {
 
 	libatari800_clear_input_array(&input);
 
-	emulator_state_t state;
-	cpu_state_t *cpu;
-	pc_state_t *pc;
+	// emulator_state_t state;
+	// cpu_state_t *cpu;
+	// pc_state_t *pc;
 
 	printf("emulation: fps=%f\n", libatari800_get_fps());
 
-	atari_screen = (UBYTE *)Mxalloc(384 * 240, MX_STRAM);
+	atari_screen = (UBYTE *)Mxalloc(ATARI_WIDTH * ATARI_HEIGHT, MX_STRAM);
 
-	VsetMode(OVERSCAN | PAL | TV | COL40 | BPS8);	// 384x240
+	VsetMode(PAL | TV | COL40 | BPS8);	// 320x200
 
 	extern int Colours_table[256];
 #define Colours_GetR(x) ((UBYTE) (Colours_table[x] >> 16))
