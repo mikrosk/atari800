@@ -4,6 +4,7 @@
 #endif
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
@@ -31,12 +32,46 @@ static void debug_screen()
 int main(int argc, char **argv) {
 	input_template_t input;
 
-	/* force the 400/800 OS to get the Memo Pad */
 	char *test_args[] = {
-		"tony.xex",
+		//"tony.xex",
 		NULL,
 	};
 	libatari800_init(-1, test_args);
+
+	FILE *f;
+	if ((f = fopen("tony.xex", "rb")) == NULL) {
+		libatari800_exit();
+		return EXIT_FAILURE;
+	}
+
+	UWORD id = 0;
+	UWORD start_addr = 0;
+	UWORD end_addr = 0;
+
+	fread(&id, sizeof(id), 1, f);
+	fread(&start_addr, sizeof(start_addr), 1, f);
+	fread(&end_addr, sizeof(end_addr), 1, f);
+
+#ifndef LINUX
+	id = __builtin_bswap16(id);
+	start_addr = __builtin_bswap16(start_addr);
+	end_addr = __builtin_bswap16(end_addr);
+#endif
+
+	printf("id: %04x, start: %04x, end: %04x\n", id, start_addr, end_addr);
+
+#if 1
+	UBYTE *buf = libatari800_get_main_memory_ptr() + start_addr;
+	fread(buf, 1, 64 * 1024, f);
+	fclose(f);
+
+	libatari800_get_main_memory_ptr()[0xfffc] = (start_addr & 0xff);
+	libatari800_get_main_memory_ptr()[0xfffd] = (start_addr >> 8);
+	extern void Atari800_Warmstart(void);
+	Atari800_Warmstart();
+	extern UBYTE PIA_PORTB_mask;
+	PIA_PORTB_mask = 0x00;
+#endif
 
 	libatari800_clear_input_array(&input);
 
@@ -78,7 +113,8 @@ int main(int argc, char **argv) {
 		clock_t end = clock();
 
 		int vbls = (end - beg) * 50 / (int)CLOCKS_PER_SEC;
-		printf("frame took: %d VBLs (%d FPS)\n", vbls, 50 / vbls);
+		if (vbls)
+			printf("frame took: %d VBLs (%d FPS)\n", vbls, 50 / vbls);
 	}
 
 	libatari800_exit();
