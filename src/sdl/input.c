@@ -880,6 +880,42 @@ void PLATFORM_GetJoystickKeyName(int joystick, int direction, char *buffer, int 
 	snprintf(buffer, bufsize, "%11s", key);
 }
 
+void PLATFORM_GetSpecialKeyName(int index, char *buffer, int bufsize)
+{
+	const char *key = "";
+	switch(index) {
+		case 0: key = SDL_GetKeyName(KBD_UI); break;
+		case 1: key = SDL_GetKeyName(KBD_OPTION); break;
+		case 2: key = SDL_GetKeyName(KBD_SELECT); break;
+		case 3: key = SDL_GetKeyName(KBD_START); break;
+		case 4: key = SDL_GetKeyName(KBD_RESET); break;
+		case 5: key = SDL_GetKeyName(KBD_HELP); break;
+		case 6: key = SDL_GetKeyName(KBD_BREAK); break;
+		case 7: key = SDL_GetKeyName(KBD_MON); break;
+		case 8: key = SDL_GetKeyName(KBD_EXIT); break;
+		case 9: key = SDL_GetKeyName(KBD_SSHOT); break;
+		case 10: key = SDL_GetKeyName(KBD_TURBO); break;
+	}
+	snprintf(buffer, bufsize, "%11s", key);
+}
+
+void PLATFORM_SetSpecialKey(int index, int sym)
+{
+	switch(index) {
+		case 0: KBD_UI = sym; break;
+		case 1: KBD_OPTION = sym; break;
+		case 2: KBD_SELECT = sym; break;
+		case 3: KBD_START = sym; break;
+		case 4: KBD_RESET = sym; break;
+		case 5: KBD_HELP = sym; break;
+		case 6: KBD_BREAK = sym; break;
+		case 7: KBD_MON = sym; break;
+		case 8: KBD_EXIT = sym; break;
+		case 9: KBD_SSHOT = sym; break;
+		case 10: KBD_TURBO = sym; break;
+	}
+}
+
 static int lastkey = SDLK_UNKNOWN, key_pressed = 0, key_control = 0;
 static int lastuni = 0;
 

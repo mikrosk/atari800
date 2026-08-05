@@ -2237,6 +2237,10 @@ static int find_turbo_speed_index(int turbo_speed) {
 	return -1;
 }
 
+#ifdef GUI_SDL
+static void SpecialKeysConfiguration(void);
+#endif
+
 static void AtariSettings(void)
 {
 #ifdef XEP80_EMULATION
@@ -2271,6 +2275,9 @@ static void AtariSettings(void)
 		UI_MENU_SUBMENU(11, "Host device settings"),
 		UI_MENU_SUBMENU(13, "System ROM settings"),
 		UI_MENU_SUBMENU(14, "Configure directories"),
+#ifdef GUI_SDL
+		UI_MENU_SUBMENU(21, "Define special keys mapping"),
+#endif
 #ifndef DREAMCAST
 		UI_MENU_CHECK(16, "Auto-save configuration on exit:"),
 #endif
@@ -2341,6 +2348,11 @@ static void AtariSettings(void)
 		case 14:
 			ConfigureDirectories();
 			break;
+#ifdef GUI_SDL
+		case 21:
+			SpecialKeysConfiguration();
+			break;
+#endif
 #ifndef DREAMCAST
 		case 16:
 			CFG_save_on_exit = !CFG_save_on_exit;
@@ -3829,6 +3841,68 @@ static void SetActionMenuItem(UI_tMenuItem *item, int retval, const char *prefix
 	item->prefix = prefix;
 	item->item = text;
 	item->suffix = NULL;
+}
+
+static char special_keys[11][16];
+static const UI_tMenuItem special_keys_menu_array[] = {
+	UI_MENU_SUBMENU_SUFFIX(0, "open menu : ", special_keys[0]),
+	UI_MENU_SUBMENU_SUFFIX(1, "OPTION    : ", special_keys[1]),
+	UI_MENU_SUBMENU_SUFFIX(2, "SELECT    : ", special_keys[2]),
+	UI_MENU_SUBMENU_SUFFIX(3, "START     : ", special_keys[3]),
+	UI_MENU_SUBMENU_SUFFIX(4, "RESET     : ", special_keys[4]),
+	UI_MENU_SUBMENU_SUFFIX(5, "HELP      : ", special_keys[5]),
+	UI_MENU_SUBMENU_SUFFIX(6, "BREAK     : ", special_keys[6]),
+	UI_MENU_SUBMENU_SUFFIX(7, "monitor   : ", special_keys[7]),
+	UI_MENU_SUBMENU_SUFFIX(8, "quit      : ", special_keys[8]),
+	UI_MENU_SUBMENU_SUFFIX(9, "screenshot: ", special_keys[9]),
+	UI_MENU_SUBMENU_SUFFIX(10,"turbo     : ", special_keys[10]),
+	UI_MENU_LABEL("\022\022\022\022\022\022\022\022\022\022\022\022\022\022\022\022\022\022\022\022\022\022\022"),
+	UI_MENU_ACTION(12, "Restore defaults"),
+	UI_MENU_END
+};
+/* Keys that must not be bound to special functions (menu navigation,
+   modifiers). */
+static int SpecialKeyRejected(int k)
+{
+	if (k == SDLK_ESCAPE || k == SDLK_RETURN || k == SDLK_TAB
+	    || k == SDLK_UP || k == SDLK_DOWN || k == SDLK_LEFT || k == SDLK_RIGHT)
+		return TRUE;
+#if SDL2
+	if (k == SDLK_LSHIFT || k == SDLK_RSHIFT || k == SDLK_LCTRL || k == SDLK_RCTRL
+	    || k == SDLK_LALT || k == SDLK_RALT || k == SDLK_LGUI || k == SDLK_RGUI
+	    || k == SDLK_MODE || k == SDLK_CAPSLOCK || k == SDLK_NUMLOCKCLEAR || k == SDLK_SCROLLLOCK)
+		return TRUE;
+#else
+	if ((k >= SDLK_NUMLOCK && k <= SDLK_MODE))
+		return TRUE;
+#endif
+	return FALSE;
+}
+
+static void SpecialKeysConfiguration(void)
+{
+	int option = 0;
+	for(;;) {
+		int i;
+		for(i = 0; i <= 10; i++)
+			PLATFORM_GetSpecialKeyName(i, special_keys[i], sizeof(special_keys[i]));
+		option = UI_driver->fSelect("Define special keys", UI_SELECT_POPUP, option, special_keys_menu_array, NULL);
+		if (option >= 0 && option <= 10) {
+			int k = GetRawKey();
+			if (!SpecialKeyRejected(k))
+				PLATFORM_SetSpecialKey(option, k);
+		}
+		else if (option == 12) {
+			static const int default_special_keys[11] = {
+				SDLK_F1, SDLK_F2, SDLK_F3, SDLK_F4, SDLK_F5, SDLK_F6,
+				SDLK_F7, SDLK_F8, SDLK_F9, SDLK_F10, SDLK_F12
+			};
+			for (i = 0; i < 11; i++)
+				PLATFORM_SetSpecialKey(i, default_special_keys[i]);
+		}
+		else
+			break;
+	}
 }
 #endif
 
