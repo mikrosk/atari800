@@ -290,6 +290,71 @@ static int SDLKeyBind(int *retval, char *sdlKeySymIntStr)
 	}
 }
 
+#if SDL2
+/* Default SDL2 button mapping for a full gamepad (SDL_CONTROLLER_BUTTON_*). */
+static void set_gamepad_default_buttons(int port)
+{
+	int btn;
+	for (btn = 0; btn < INPUT_JOYSTICK_MAX_BUTTONS; ++btn) {
+		switch (btn) {
+		case SDL_CONTROLLER_BUTTON_LEFTSTICK:
+		case SDL_CONTROLLER_BUTTON_RIGHTSTICK:
+		case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:
+		case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER:
+			stick_devs[port].real_config.buttons[btn].action = JoystickUiAction;
+			stick_devs[port].real_config.buttons[btn].key = AKEY_CONTROLLER_BUTTON_TRIGGER;
+			break;
+		case SDL_CONTROLLER_BUTTON_A:
+			stick_devs[port].real_config.buttons[btn].action = JoystickAtariKey;
+			stick_devs[port].real_config.buttons[btn].key = AKEY_START;
+			break;
+		case SDL_CONTROLLER_BUTTON_B:
+			stick_devs[port].real_config.buttons[btn].action = JoystickAtariKey;
+			stick_devs[port].real_config.buttons[btn].key = AKEY_SELECT;
+			break;
+		case SDL_CONTROLLER_BUTTON_X:
+			stick_devs[port].real_config.buttons[btn].action = JoystickAtariKey;
+			stick_devs[port].real_config.buttons[btn].key = AKEY_OPTION;
+			break;
+		case SDL_CONTROLLER_BUTTON_Y:
+			stick_devs[port].real_config.buttons[btn].action = JoystickUiAction;
+			stick_devs[port].real_config.buttons[btn].key = AKEY_WARMSTART;
+			break;
+		case SDL_CONTROLLER_BUTTON_BACK:
+			stick_devs[port].real_config.buttons[btn].action = JoystickUiAction;
+			stick_devs[port].real_config.buttons[btn].key = AKEY_TURBO;
+			break;
+		case SDL_CONTROLLER_BUTTON_START:
+			stick_devs[port].real_config.buttons[btn].action = JoystickUiAction;
+			stick_devs[port].real_config.buttons[btn].key = UI_MENU_RUN;
+			break;
+		default:
+			stick_devs[port].real_config.buttons[btn].action = JoystickNoAction;
+			stick_devs[port].real_config.buttons[btn].key = 0;
+			break;
+		}
+	}
+}
+
+/* Count-aware default settings for a port. Joysticks with 5 or fewer
+   buttons are unlikely to be full gamepads, so their first button is the
+   fire trigger instead of A=Start, and their digital stick gets wide
+   diagonal zones. Values set by user config or UI are never overridden. */
+static void apply_count_aware_defaults(int port)
+{
+	int small = stick_devs[port].nbuttons > 0 && stick_devs[port].nbuttons <= 5;
+	if (!stick_devs[port].real_config.buttons_custom) {
+		set_gamepad_default_buttons(port);
+		if (small) {
+			stick_devs[port].real_config.buttons[0].action = JoystickUiAction;
+			stick_devs[port].real_config.buttons[0].key = AKEY_CONTROLLER_BUTTON_TRIGGER;
+		}
+	}
+	if (!stick_devs[port].real_config.diagonals_custom && small)
+		stick_devs[port].real_config.diagonal_zones = JoystickWideDiagonalsZone;
+}
+#endif /* SDL2 */
+
 /* Fill stick_devs[0..3] from joy_port_mode[] / joy_port_param[].
    Called during init and whenever port config changes via UI. */
 static void apply_port_mapping(void) {
@@ -325,6 +390,9 @@ static void apply_port_mapping(void) {
 			if (idx >= 0 && idx < n_host_joys && host_joys[idx] != NULL) {
 				s->sdl_joy = host_joys[idx];
 				s->nbuttons = SDL_JoystickNumButtons(host_joys[idx]);
+#if SDL2
+				apply_count_aware_defaults(i);
+#endif
 			}
 			break;
 		}
@@ -353,6 +421,7 @@ static int set_real_js_axes(int joyIndex, const char* parm) {
 static int set_real_js_diagonals(int joyIndex, const char* parm) {
 #if SDL2
 	int zone = Util_sscandec(parm);
+	stick_devs[joyIndex].real_config.diagonals_custom = 1;
     stick_devs[joyIndex].real_config.diagonal_zones =
 		zone == 1 ? JoystickNarrowDiagonalsZone :
 			zone == 2 ? JoystickWideDiagonalsZone : JoystickNoDiagonals;
@@ -365,6 +434,7 @@ static int set_real_js_diagonals(int joyIndex, const char* parm) {
 static int set_real_js_actions(int joyIndex, char* params) {
 #if SDL2
 	int btn = 0;
+	stick_devs[joyIndex].real_config.buttons_custom = 1;
 	char* p = strtok(params, ",");
 	while (p) {
 		if (btn < INPUT_JOYSTICK_MAX_BUTTONS) {
@@ -384,6 +454,7 @@ static int set_real_js_actions(int joyIndex, char* params) {
 static int set_real_js_keys(int joyIndex, char* params) {
 #if SDL2
 	int btn = 0;
+	stick_devs[joyIndex].real_config.buttons_custom = 1;
 	char* p = strtok(params, ",");
 	while (p) {
 		if (btn < INPUT_JOYSTICK_MAX_BUTTONS) {
@@ -409,45 +480,9 @@ static void reset_real_js_configs(void)
 #if SDL2
         stick_devs[i].real_config.axes = 0;
         stick_devs[i].real_config.diagonal_zones = JoystickNarrowDiagonalsZone;
-		for (int btn = 0; btn < INPUT_JOYSTICK_MAX_BUTTONS; ++btn) {
-			switch (btn) {
-			case SDL_CONTROLLER_BUTTON_LEFTSTICK:
-			case SDL_CONTROLLER_BUTTON_RIGHTSTICK:
-			case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:
-			case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER:
-				stick_devs[i].real_config.buttons[btn].action = JoystickUiAction;
-				stick_devs[i].real_config.buttons[btn].key = AKEY_CONTROLLER_BUTTON_TRIGGER;
-				break;
-			case SDL_CONTROLLER_BUTTON_A:
-				stick_devs[i].real_config.buttons[btn].action = JoystickAtariKey;
-				stick_devs[i].real_config.buttons[btn].key = AKEY_START;
-				break;
-			case SDL_CONTROLLER_BUTTON_B:
-				stick_devs[i].real_config.buttons[btn].action = JoystickAtariKey;
-				stick_devs[i].real_config.buttons[btn].key = AKEY_SELECT;
-				break;
-			case SDL_CONTROLLER_BUTTON_X:
-				stick_devs[i].real_config.buttons[btn].action = JoystickAtariKey;
-				stick_devs[i].real_config.buttons[btn].key = AKEY_OPTION;
-				break;
-			case SDL_CONTROLLER_BUTTON_Y:
-				stick_devs[i].real_config.buttons[btn].action = JoystickUiAction;
-				stick_devs[i].real_config.buttons[btn].key = AKEY_WARMSTART;
-				break;
-			case SDL_CONTROLLER_BUTTON_BACK:
-				stick_devs[i].real_config.buttons[btn].action = JoystickUiAction;
-				stick_devs[i].real_config.buttons[btn].key = AKEY_TURBO;
-				break;
-			case SDL_CONTROLLER_BUTTON_START:
-				stick_devs[i].real_config.buttons[btn].action = JoystickUiAction;
-				stick_devs[i].real_config.buttons[btn].key = UI_MENU_RUN;
-				break;
-			default:
-				stick_devs[i].real_config.buttons[btn].action = JoystickNoAction;
-				stick_devs[i].real_config.buttons[btn].key = 0;
-				break;
-			}
-		}
+        stick_devs[i].real_config.buttons_custom = 0;
+        stick_devs[i].real_config.diagonals_custom = 0;
+        apply_count_aware_defaults(i);
 #endif
 		paddle_pot_axis[i][0] = 2;
 		paddle_pot_axis[i][1] = 3;

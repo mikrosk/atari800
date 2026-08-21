@@ -28,6 +28,8 @@ typedef struct SDL_INPUT_RealJSConfig_t {
 #if SDL2
 	int axes;
 	enum INPUT_joystick_diagonals diagonal_zones;
+	int buttons_custom; /* buttons were set by user config or UI; defaults should not override */
+	int diagonals_custom; /* diagonal zones were set by user config or UI; defaults should not override */
 	struct INPUT_joystick_button buttons[INPUT_JOYSTICK_MAX_BUTTONS];
 #endif
 } SDL_INPUT_RealJSConfig_t;

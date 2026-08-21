@@ -3705,6 +3705,7 @@ static void JoystickButtonsConfiguration(SDL_INPUT_RealJSConfig_t* js_config) {
 			}
 	
 			if (opt >= 0) {
+				js_config->buttons_custom = 1;
 				JoystickMenuUpdate(js_config);
 			}
 		}
@@ -3780,7 +3781,8 @@ static void PortConfiguration(int port)
 		case 4: potB = (potB + 1) % 8; SDL_INPUT_SetPortPaddleConfig(port, potA, potB, btnA, btnB); break;
 		case 5: btnA = (btnA + 1) % 16; SDL_INPUT_SetPortPaddleConfig(port, potA, potB, btnA, btnB); break;
 		case 6: btnB = (btnB + 1) % 16; SDL_INPUT_SetPortPaddleConfig(port, potA, potB, btnA, btnB); break;
-		case 7: js_config->diagonal_zones = (js_config->diagonal_zones + 1) % 3; break;
+		case 7: js_config->diagonal_zones = (js_config->diagonal_zones + 1) % 3;
+			js_config->diagonals_custom = 1; break;
 		case 8: JoystickButtonsConfiguration(js_config); break;
 		}
 	}
