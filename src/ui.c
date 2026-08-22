@@ -3845,7 +3845,7 @@ static void SetActionMenuItem(UI_tMenuItem *item, int retval, const char *prefix
 	item->suffix = NULL;
 }
 
-static char special_keys[11][16];
+static char special_keys[12][16];
 static const UI_tMenuItem special_keys_menu_array[] = {
 	UI_MENU_SUBMENU_SUFFIX(0, "open menu : ", special_keys[0]),
 	UI_MENU_SUBMENU_SUFFIX(1, "OPTION    : ", special_keys[1]),
@@ -3857,7 +3857,8 @@ static const UI_tMenuItem special_keys_menu_array[] = {
 	UI_MENU_SUBMENU_SUFFIX(7, "monitor   : ", special_keys[7]),
 	UI_MENU_SUBMENU_SUFFIX(8, "quit      : ", special_keys[8]),
 	UI_MENU_SUBMENU_SUFFIX(9, "screenshot: ", special_keys[9]),
-	UI_MENU_SUBMENU_SUFFIX(10,"turbo     : ", special_keys[10]),
+	UI_MENU_SUBMENU_SUFFIX(10,"on-scr kbd: ", special_keys[10]),
+	UI_MENU_SUBMENU_SUFFIX(11,"turbo     : ", special_keys[11]),
 	UI_MENU_LABEL("\022\022\022\022\022\022\022\022\022\022\022\022\022\022\022\022\022\022\022\022\022\022\022"),
 	UI_MENU_ACTION(12, "Restore defaults"),
 	UI_MENU_END
@@ -3886,20 +3887,20 @@ static void SpecialKeysConfiguration(void)
 	int option = 0;
 	for(;;) {
 		int i;
-		for(i = 0; i <= 10; i++)
+		for(i = 0; i <= 11; i++)
 			PLATFORM_GetSpecialKeyName(i, special_keys[i], sizeof(special_keys[i]));
 		option = UI_driver->fSelect("Define special keys", UI_SELECT_POPUP, option, special_keys_menu_array, NULL);
-		if (option >= 0 && option <= 10) {
+		if (option >= 0 && option <= 11) {
 			int k = GetRawKey();
 			if (!SpecialKeyRejected(k))
 				PLATFORM_SetSpecialKey(option, k);
 		}
 		else if (option == 12) {
-			static const int default_special_keys[11] = {
+			static const int default_special_keys[12] = {
 				SDLK_F1, SDLK_F2, SDLK_F3, SDLK_F4, SDLK_F5, SDLK_F6,
-				SDLK_F7, SDLK_F8, SDLK_F9, SDLK_F10, SDLK_F12
+				SDLK_F7, SDLK_F8, SDLK_F9, SDLK_F10, SDLK_F11, SDLK_F12
 			};
-			for (i = 0; i < 11; i++)
+			for (i = 0; i < 12; i++)
 				PLATFORM_SetSpecialKey(i, default_special_keys[i]);
 		}
 		else

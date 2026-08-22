@@ -132,6 +132,7 @@ static int KBD_BREAK = SDLK_F7;
 static int KBD_MON = SDLK_F8;
 static int KBD_EXIT = SDLK_F9;
 static int KBD_SSHOT = SDLK_F10;
+static int KBD_OSK = SDLK_F11;
 static int KBD_TURBO = SDLK_F12;
 
 /* Each emulated joystick can take its input from host keyboard, an
@@ -824,6 +825,8 @@ int SDL_INPUT_ReadConfig(char *option, char *parameters)
 		return SDLKeyBind(&KBD_EXIT, parameters);
 	else if (strcmp(option, KEY_SDL"SSHOT_KEY") == 0)
 		return SDLKeyBind(&KBD_SSHOT, parameters);
+	else if (strcmp(option, KEY_SDL"ONSCREEN_KEY") == 0)
+		return SDLKeyBind(&KBD_OSK, parameters);
 	else if (strcmp(option, KEY_SDL"TURBO_KEY") == 0)
 		return SDLKeyBind(&KBD_TURBO, parameters);
 	else
@@ -867,6 +870,7 @@ void SDL_INPUT_WriteConfig(FILE *fp)
 	fprintf(fp, KEY_SDL"MON_KEY=%d\n", KBD_MON);
 	fprintf(fp, KEY_SDL"EXIT_KEY=%d\n", KBD_EXIT);
 	fprintf(fp, KEY_SDL"SSHOT_KEY=%d\n", KBD_SSHOT);
+	fprintf(fp, KEY_SDL"ONSCREEN_KEY=%d\n", KBD_OSK);
 	fprintf(fp, KEY_SDL"TURBO_KEY=%d\n", KBD_TURBO);
 
 	write_real_js_configs(fp);
@@ -929,7 +933,8 @@ void PLATFORM_GetSpecialKeyName(int index, char *buffer, int bufsize)
 		case 7: key = SDL_GetKeyName(KBD_MON); break;
 		case 8: key = SDL_GetKeyName(KBD_EXIT); break;
 		case 9: key = SDL_GetKeyName(KBD_SSHOT); break;
-		case 10: key = SDL_GetKeyName(KBD_TURBO); break;
+		case 10: key = SDL_GetKeyName(KBD_OSK); break;
+		case 11: key = SDL_GetKeyName(KBD_TURBO); break;
 	}
 	snprintf(buffer, bufsize, "%11s", key);
 }
@@ -947,7 +952,8 @@ void PLATFORM_SetSpecialKey(int index, int sym)
 		case 7: KBD_MON = sym; break;
 		case 8: KBD_EXIT = sym; break;
 		case 9: KBD_SSHOT = sym; break;
-		case 10: KBD_TURBO = sym; break;
+		case 10: KBD_OSK = sym; break;
+		case 11: KBD_TURBO = sym; break;
 	}
 }
 
@@ -1552,16 +1558,16 @@ int PLATFORM_Keyboard(void)
 		key_pressed = 0;
 		return INPUT_key_shift ? AKEY_SCREENSHOT_INTERLACE : AKEY_SCREENSHOT;
 	}
-	if (lastkey == KBD_TURBO) {
-		key_pressed = 0;
-		return AKEY_TURBO;
-	}
 #ifdef USE_UI_BASIC_ONSCREEN_KEYBOARD
-	if (lastkey == SDLK_F11) {
+	if (lastkey == KBD_OSK) {
 		key_pressed = 0;
 		return AKEY_KEYB;
 	}
 #endif
+	if (lastkey == KBD_TURBO) {
+		key_pressed = 0;
+		return AKEY_TURBO;
+	}
 	if (UI_alt_function != -1) {
 		key_pressed = 0;
 		return AKEY_UI;
