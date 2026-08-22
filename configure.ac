@@ -1285,7 +1285,7 @@ if [[ "$WANT_POKEYREC" = "yes" ]]; then
 fi
 AM_CONDITIONAL([WANT_POKEYREC], test "$WANT_POKEYREC" = "yes")
 
-if [[ "$a8_use_sdl" = yes ]]; then
+if test "$a8_use_sdl" = yes || test "$a8_use_sdl2" = yes; then
     A8_OPTION(onscreenkeyboard,no,
               [Enable on-screen keyboard (default=OFF)],
               USE_UI_BASIC_ONSCREEN_KEYBOARD,[Define to enable on-screen keyboard.]
@@ -1556,6 +1556,7 @@ if [[ "$a8_target" = default -a "$with_video" = sdl ]]; then
     echo "Using OpenGL?.........................: $with_opengl"
 fi
 if [[ "$a8_target" = default -a "$with_video" = sdl2 ]]; then
+    echo "Using on-screen keyboard?.............: $WANT_USE_UI_BASIC_ONSCREEN_KEYBOARD"
     echo "Using OpenGL?.........................: $with_opengl"
 fi
 echo
