@@ -1286,8 +1286,8 @@ fi
 AM_CONDITIONAL([WANT_POKEYREC], test "$WANT_POKEYREC" = "yes")
 
 if test "$a8_use_sdl" = yes || test "$a8_use_sdl2" = yes; then
-    A8_OPTION(onscreenkeyboard,no,
-              [Enable on-screen keyboard (default=OFF)],
+    A8_OPTION(onscreenkeyboard,yes,
+              [Enable on-screen keyboard (default=ON)],
               USE_UI_BASIC_ONSCREEN_KEYBOARD,[Define to enable on-screen keyboard.]
              )
 fi
