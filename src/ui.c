@@ -3628,6 +3628,9 @@ static UI_tMenuItem joy_menu_actions[] = {
 	UI_MENU_ACTION(KEYBASE + UI_MENU_DISK, "Disk"),
 	UI_MENU_ACTION(KEYBASE + UI_MENU_CARTRIDGE, "Cartridge"),
 	UI_MENU_ACTION(KEYBASE + AKEY_UI, "Enter setup"),
+#ifdef USE_UI_BASIC_ONSCREEN_KEYBOARD
+	UI_MENU_ACTION(KEYBASE + AKEY_KEYB, "On-screen keyboard"),
+#endif
 	UI_MENU_ACTION(KEYBASE + AKEY_WARMSTART, "Reset (warm)"),
 	UI_MENU_ACTION(KEYBASE + AKEY_COLDSTART, "Reset (cold)"),
 	UI_MENU_ACTION(KEYBASE + AKEY_TURBO, "Toggle turbo"),
