@@ -158,6 +158,9 @@ static KEYBOARD_CONST Uint8 *kbhits;
 
 #ifdef USE_UI_BASIC_ONSCREEN_KEYBOARD
 static struct stick_dev *osk_stick = NULL;
+/* Used when no Atari port is bound to a host joystick, so the menus and
+   on-screen keyboard can still be navigated with one. */
+static struct stick_dev fallback_osk_stick;
 static int SDL_controller_kb(void);
 static int SDL_consol_keys(void);
 int OSK_enabled = 1;
@@ -2099,12 +2102,15 @@ static void Init_SDL_Joysticks(void)
 		if (host_joys[i] == NULL) {
 			Log_print("Joystick %i not found", i);
 		} else {
-			Log_print("Joystick %i: %s", i,
+			Log_print("Joystick %i: %s (%d axes, %d hats, %d buttons)", i,
 #if SDL2
-				SDL_JoystickName(host_joys[i]));
+				SDL_JoystickName(host_joys[i]),
 #else
-				SDL_JoystickName(i));
+				SDL_JoystickName(i),
 #endif
+				SDL_JoystickNumAxes(host_joys[i]),
+				SDL_JoystickNumHats(host_joys[i]),
+				SDL_JoystickNumButtons(host_joys[i]));
 		}
 	}
 
@@ -2118,6 +2124,24 @@ static void Init_SDL_Joysticks(void)
 			if (osk_stick->nbuttons > OSK_MAX_BUTTONS)
 				osk_stick->nbuttons = OSK_MAX_BUTTONS;
 		}
+	}
+	if (osk_stick == NULL && n_host_joys > 0) {
+		/* No Atari port is bound to a host joystick: still let the first
+		   one navigate the menus and the on-screen keyboard. It is
+		   navigation-only — no console keys and no in-game UI/OSK
+		   shortcuts (see SDL_controller_kb1 and SDL_consol_keys). */
+		osk_stick = &fallback_osk_stick;
+		memset(&fallback_osk_stick, 0, sizeof(fallback_osk_stick));
+		fallback_osk_stick.sdl_joy = host_joys[0];
+		fallback_osk_stick.nbuttons = SDL_JoystickNumButtons(host_joys[0]);
+		if (fallback_osk_stick.nbuttons > OSK_MAX_BUTTONS)
+			fallback_osk_stick.nbuttons = OSK_MAX_BUTTONS;
+		Log_print("Menu/OSK joystick (fallback): %s",
+#if SDL2
+		          SDL_JoystickName(host_joys[0]));
+#else
+		          SDL_JoystickName(0));
+#endif
 	}
 #endif
 }
@@ -2634,11 +2658,16 @@ static int SDL_controller_kb1(void)
 
 	SDL_JoystickUpdate();
 
-	if (!UI_is_active && osk_joystick_button(OSK_BUTTON_UI)) {
-		return(AKEY_UI);
-	}
-	if (!UI_is_active && osk_joystick_button(OSK_BUTTON_KEYB)) {
-		return(AKEY_KEYB);
+	/* A joystick that only navigates the menus/OSK (the fallback stick,
+	   used when no Atari port is bound to a host joystick) must not open
+	   the emulator UI or the on-screen keyboard while a game runs. */
+	if (osk_stick != &fallback_osk_stick) {
+		if (!UI_is_active && osk_joystick_button(OSK_BUTTON_UI)) {
+			return(AKEY_UI);
+		}
+		if (!UI_is_active && osk_joystick_button(OSK_BUTTON_KEYB)) {
+			return(AKEY_KEYB);
+		}
 	}
 	/* provide keyboard emulation to enter file name */
 	if (UI_is_active && !UI_BASIC_in_kbui && osk_joystick_button(OSK_BUTTON_KEYB)) {
@@ -2666,10 +2695,11 @@ static int SDL_controller_kb1(void)
 
 	if (UI_is_active || UI_BASIC_in_kbui) {
 		int port;
-		if (osk_stick->real_config.use_hat)
-			port = get_SDL_joystick_hat_state(osk_stick->sdl_joy);
-		else
-			port = get_SDL_joystick_state(osk_stick->sdl_joy, &osk_stick->real_config);
+		/* Accept direction input from the analog axes AND the D-pad hat,
+		   so menu/OSK navigation works regardless of how the controller
+		   reports its directional control. */
+		port = get_SDL_joystick_state(osk_stick->sdl_joy, &osk_stick->real_config);
+		port &= get_SDL_joystick_hat_state(osk_stick->sdl_joy);
 		if (!(port & 1)) {
 			prev_down = FALSE;
 			if (! prev_up) {
@@ -2799,6 +2829,13 @@ static int SDL_controller_kb(void)
 static int SDL_consol_keys(void)
 {
 	INPUT_key_consol = INPUT_CONSOL_NONE;
+
+	/* Console START/SELECT/OPTION via joystick only makes sense for a
+	   joystick that is a real Atari port controller. The fallback stick
+	   (no port bound) is navigation-only and must not feed console keys
+	   into an emulated machine. */
+	if (osk_stick != &fallback_osk_stick)
+		return AKEY_NONE;
 
 #if OSK_BUTTON_START != OSK_BUTTON_LEAVE
 #error FIXME: make button assignments configurable
