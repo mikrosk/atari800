@@ -142,6 +142,7 @@ static struct stick_dev {
 	int fd_lpt;
 	SDL_Joystick *sdl_joy;
 	int nbuttons;
+	int naxes;
 	SDL_INPUT_RealJSConfig_t real_config;
 } stick_devs[MAX_JOYSTICKS];
 
@@ -370,6 +371,7 @@ static void apply_port_mapping(void) {
 		s->fd_lpt = -1;
 		s->sdl_joy = NULL;
 		s->nbuttons = 0;
+		s->naxes = 0;
 		switch (joy_port_mode[i]) {
 		case JOY_MODE_KBD0:
 			s->kbd = kbd_stick0;
@@ -393,6 +395,7 @@ static void apply_port_mapping(void) {
 			if (idx >= 0 && idx < n_host_joys && host_joys[idx] != NULL) {
 				s->sdl_joy = host_joys[idx];
 				s->nbuttons = SDL_JoystickNumButtons(host_joys[idx]);
+				s->naxes = SDL_JoystickNumAxes(host_joys[idx]);
 #if SDL2
 				apply_count_aware_defaults(i);
 #endif
@@ -405,10 +408,12 @@ static void apply_port_mapping(void) {
 	}
 }
 
-/*Set real joystick to use hat instead of axis*/
+/*Set where a real joystick takes its direction from*/
 static int set_real_js_use_hat(int joyIndex, const char* parm)
 {
-    stick_devs[joyIndex].real_config.use_hat = Util_sscandec(parm) != 0 ? TRUE : FALSE;
+    int v = atoi(parm);
+    stick_devs[joyIndex].real_config.use_hat =
+        v > 0 ? JOY_USE_HAT_YES : (v < 0 ? JOY_USE_HAT_AUTO : JOY_USE_HAT_NO);
     return TRUE;
 }
 
@@ -479,7 +484,7 @@ static void reset_real_js_configs(void)
 {
     int i;
     for (i = 0; i < MAX_JOYSTICKS; i++) {
-        stick_devs[i].real_config.use_hat = FALSE;
+        stick_devs[i].real_config.use_hat = JOY_USE_HAT_AUTO;
 #if SDL2
         stick_devs[i].real_config.axes = 0;
         stick_devs[i].real_config.diagonal_zones = JoystickNarrowDiagonalsZone;
@@ -2160,6 +2165,7 @@ int SDL_INPUT_Initialise(int *argc, char *argv[])
 		stick_devs[i].fd_lpt = -1;
 		stick_devs[i].sdl_joy = NULL;
 		stick_devs[i].nbuttons = 0;
+		stick_devs[i].naxes = 0;
 	}
 	if (!was_config_initialized) {
 		reset_real_js_configs();
@@ -2176,18 +2182,6 @@ int SDL_INPUT_Initialise(int *argc, char *argv[])
 		}
 		else if (strcmp(argv[i], "-grabmouse") == 0) {
 			grab_mouse = TRUE;
-		}
-		else if (strcmp(argv[i], "-joy0hat") == 0) {
-			stick_devs[0].real_config.use_hat = TRUE;
-		}
-		else if (strcmp(argv[i], "-joy1hat") == 0) {
-			stick_devs[1].real_config.use_hat = TRUE;
-		}
-		else if (strcmp(argv[i], "-joy2hat") == 0) {
-			stick_devs[2].real_config.use_hat = TRUE;
-		}
-		else if (strcmp(argv[i], "-joy3hat") == 0) {
-			stick_devs[3].real_config.use_hat = TRUE;
 		}
 #ifdef LPTJOY
 		else if (strcmp(argv[i], "-joy0") == 0) {
@@ -2229,10 +2223,6 @@ int SDL_INPUT_Initialise(int *argc, char *argv[])
 			if (strcmp(argv[i], "-help") == 0) {
 				help_only = TRUE;
 				Log_print("\t-nojoystick      Disable joystick");
-				Log_print("\t-joy0hat         Use hat of joystick 0");
-				Log_print("\t-joy1hat         Use hat of joystick 1");
-				Log_print("\t-joy2hat         Use hat of joystick 2");
-				Log_print("\t-joy3hat         Use hat of joystick 3");
 #ifdef LPTJOY
 				Log_print("\t-joy0 <pathname> Select LPTjoy0 device");
 				Log_print("\t-joy1 <pathname> Select LPTjoy1 device");
@@ -2496,6 +2486,34 @@ static int get_SDL_joystick_hat_state(SDL_Joystick* joystick)
 	return stick;
 }
 
+/* Decide whether to read the direction from the hat or from the axis pair.
+   JOY_USE_HAT_AUTO picks whichever the device actually offers: a purely
+   digital stick (the Atari ones, for instance) reports a hat and no axes,
+   while a plain analog pad reports no hat, and reading the missing one would
+   leave the stick permanently centered. A port set to JOY_USE_HAT_NO or
+   JOY_USE_HAT_YES keeps that setting whatever is plugged into it. */
+static int use_hat_for(struct stick_dev *s)
+{
+	int first_axis;
+
+	if (s->real_config.use_hat != JOY_USE_HAT_AUTO)
+		return s->real_config.use_hat == JOY_USE_HAT_YES;
+#if SDL2
+	first_axis = s->real_config.axes;
+#else
+	first_axis = 0;
+#endif
+	return s->naxes < first_axis + 2 && SDL_JoystickNumHats(s->sdl_joy) > 0;
+}
+
+/* Direction source a port actually reads, once JOY_USE_HAT_AUTO is resolved */
+int SDL_INPUT_GetPortUsesHat(int port)
+{
+	if (port < 0 || port >= MAX_JOYSTICKS || stick_devs[port].sdl_joy == NULL)
+		return FALSE;
+	return use_hat_for(&stick_devs[port]);
+}
+
 #ifdef LPTJOY
 static int get_LPT_joystick_state(int fd)
 {
@@ -2555,7 +2573,7 @@ static int single_stick_port(int num) {
 #if !SDL2
 		SDL_JoystickUpdate();
 #endif
-		if (s->real_config.use_hat)
+		if (use_hat_for(s))
 			port &= get_SDL_joystick_hat_state(s->sdl_joy);
 		else
 			port &= get_SDL_joystick_state(s->sdl_joy, &s->real_config);

@@ -3731,7 +3731,7 @@ static void PortConfiguration(int port)
 #if SDL2
 	static UI_tMenuItem menu_array[] = {
 		UI_MENU_ACTION(0, " Mode:"),
-		UI_MENU_CHECK(1, " Use hat/D-Pad:"),
+		UI_MENU_ACTION(1, " Use:"),
 		UI_MENU_ACTION(2, " Analog axes:"),
 		UI_MENU_ACTION(3, " Paddle A axis:"),
 		UI_MENU_ACTION(4, " Paddle B axis:"),
@@ -3747,7 +3747,17 @@ static void PortConfiguration(int port)
 
 	for (;;) {
 		menu_array[0].suffix = is_paddle ? "Paddle" : "Joystick";
-		SetItemChecked(menu_array, 1, js_config->use_hat);
+		{
+			static char hat_suffix[20];
+			const char *src = js_config->use_hat == JOY_USE_HAT_AUTO
+				? (SDL_INPUT_GetPortUsesHat(port) ? "hat/D-Pad" : "axes")
+				: (js_config->use_hat == JOY_USE_HAT_YES ? "hat/D-Pad" : "axes");
+			if (js_config->use_hat == JOY_USE_HAT_AUTO)
+				snprintf(hat_suffix, sizeof(hat_suffix), "auto (%s)", src);
+			else
+				snprintf(hat_suffix, sizeof(hat_suffix), "%s", src);
+			menu_array[1].suffix = hat_suffix;
+		}
 		FindMenuItem(menu_array, 2)->suffix = js_config->axes == 0 ? "1&2" : "3&4";
 		{
 			static char suf[4][8];
@@ -3763,7 +3773,7 @@ static void PortConfiguration(int port)
 		FindMenuItem(menu_array, 7)->suffix =
 			js_config->diagonal_zones == JoystickNarrowDiagonalsZone ?
 				"Narrow" : (js_config->diagonal_zones == JoystickWideDiagonalsZone ? "Wide" : "None");
-		menu_array[1].flags = (menu_array[1].flags & ~UI_ITEM_TYPE) | (is_paddle ? UI_ITEM_HIDDEN : UI_ITEM_CHECK);
+		menu_array[1].flags = (menu_array[1].flags & ~UI_ITEM_TYPE) | (is_paddle ? UI_ITEM_HIDDEN : UI_ITEM_ACTION);
 		menu_array[2].flags = (menu_array[2].flags & ~UI_ITEM_TYPE) | (is_paddle ? UI_ITEM_HIDDEN : UI_ITEM_ACTION);
 		menu_array[3].flags = (menu_array[3].flags & ~UI_ITEM_TYPE) | (is_paddle ? UI_ITEM_ACTION : UI_ITEM_HIDDEN);
 		menu_array[4].flags = (menu_array[4].flags & ~UI_ITEM_TYPE) | (is_paddle ? UI_ITEM_ACTION : UI_ITEM_HIDDEN);
@@ -3778,7 +3788,11 @@ static void PortConfiguration(int port)
 			SDL_INPUT_SetPortMode(port, is_paddle ? JOY_MODE_HOST_JOY : JOY_MODE_PADDLE, SDL_INPUT_GetPortParam(port));
 			is_paddle = !is_paddle;
 			break;
-		case 1: js_config->use_hat = !js_config->use_hat; break;
+		case 1:
+			js_config->use_hat =
+				js_config->use_hat == JOY_USE_HAT_AUTO ? JOY_USE_HAT_NO :
+					(js_config->use_hat == JOY_USE_HAT_NO ? JOY_USE_HAT_YES : JOY_USE_HAT_AUTO);
+			break;
 		case 2: js_config->axes = js_config->axes ? 0 : 2; break;
 		case 3: potA = (potA + 1) % 8; SDL_INPUT_SetPortPaddleConfig(port, potA, potB, btnA, btnB); break;
 		case 4: potB = (potB + 1) % 8; SDL_INPUT_SetPortPaddleConfig(port, potA, potB, btnA, btnB); break;
@@ -3792,7 +3806,7 @@ static void PortConfiguration(int port)
 #else
 	static UI_tMenuItem menu_array[] = {
 		UI_MENU_ACTION(0, " Mode:"),
-		UI_MENU_CHECK(1, "Use hat/D-PAD:"),
+		UI_MENU_ACTION(1, " Use:"),
 		UI_MENU_ACTION(2, " Paddle A axis:"),
 		UI_MENU_ACTION(3, " Paddle B axis:"),
 		UI_MENU_ACTION(4, " Paddle A fire:"),
@@ -3805,7 +3819,17 @@ static void PortConfiguration(int port)
 
 	for (;;) {
 		menu_array[0].suffix = is_paddle ? "Paddle" : "Joystick";
-		SetItemChecked(menu_array, 1, js_config->use_hat);
+		{
+			static char hat_suffix[20];
+			const char *src = js_config->use_hat == JOY_USE_HAT_AUTO
+				? (SDL_INPUT_GetPortUsesHat(port) ? "hat/D-Pad" : "axes")
+				: (js_config->use_hat == JOY_USE_HAT_YES ? "hat/D-Pad" : "axes");
+			if (js_config->use_hat == JOY_USE_HAT_AUTO)
+				snprintf(hat_suffix, sizeof(hat_suffix), "auto (%s)", src);
+			else
+				snprintf(hat_suffix, sizeof(hat_suffix), "%s", src);
+			menu_array[1].suffix = hat_suffix;
+		}
 		{
 			static char suf[4][8];
 			snprintf(suf[0], sizeof(suf[0]), "%d", potA);
@@ -3817,7 +3841,7 @@ static void PortConfiguration(int port)
 			menu_array[4].suffix = suf[2];
 			menu_array[5].suffix = suf[3];
 		}
-		menu_array[1].flags = (menu_array[1].flags & ~UI_ITEM_TYPE) | (is_paddle ? UI_ITEM_HIDDEN : UI_ITEM_CHECK);
+		menu_array[1].flags = (menu_array[1].flags & ~UI_ITEM_TYPE) | (is_paddle ? UI_ITEM_HIDDEN : UI_ITEM_ACTION);
 		option = UI_driver->fSelect(title, 0, option, menu_array, NULL);
 		if (option < 0) break;
 		switch (option) {
@@ -3825,7 +3849,11 @@ static void PortConfiguration(int port)
 			SDL_INPUT_SetPortMode(port, is_paddle ? JOY_MODE_HOST_JOY : JOY_MODE_PADDLE, SDL_INPUT_GetPortParam(port));
 			is_paddle = !is_paddle;
 			break;
-		case 1: js_config->use_hat = !js_config->use_hat; break;
+		case 1:
+			js_config->use_hat =
+				js_config->use_hat == JOY_USE_HAT_AUTO ? JOY_USE_HAT_NO :
+					(js_config->use_hat == JOY_USE_HAT_NO ? JOY_USE_HAT_YES : JOY_USE_HAT_AUTO);
+			break;
 		case 2: potA = (potA + 1) % 8; SDL_INPUT_SetPortPaddleConfig(port, potA, potB, btnA, btnB); break;
 		case 3: potB = (potB + 1) % 8; SDL_INPUT_SetPortPaddleConfig(port, potA, potB, btnA, btnB); break;
 		case 4: btnA = (btnA + 1) % 16; SDL_INPUT_SetPortPaddleConfig(port, potA, potB, btnA, btnB); break;
