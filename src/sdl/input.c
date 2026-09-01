@@ -2314,19 +2314,21 @@ int SDL_INPUT_Initialise(int *argc, char *argv[])
 		   Each port tries the next available host joystick, falling back to keyboard.
 		   Port 0: first joy -> Keyboard 1
 		   Port 1: next unused joy -> Keyboard 2 */
-		if (joy_port_mode[0] == JOY_MODE_UNDEFINED) {
-			joy_port_mode[0] = n_host_joys > 0 ? JOY_MODE_HOST_JOY : JOY_MODE_KBD0;
-			joy_port_param[0] = 0;
-		}
+		if (joy_port_mode[0] == JOY_MODE_UNDEFINED)
+			SDL_INPUT_SetPortMode(0, n_host_joys > 0 ? JOY_MODE_HOST_JOY : JOY_MODE_KBD0, 0);
 		if (joy_port_mode[1] == JOY_MODE_UNDEFINED) {
-			int used = (joy_port_mode[0] == JOY_MODE_HOST_JOY) ? 1 : 0;
-			joy_port_mode[1] = n_host_joys > used ? JOY_MODE_HOST_JOY : JOY_MODE_KBD1;
-			joy_port_param[1] = used;
+			int j = 0;
+			while (j < n_host_joys && j == joy_port_param[0])
+				j++;
+			if (j < n_host_joys)
+				SDL_INPUT_SetPortMode(1, JOY_MODE_HOST_JOY, j);
+			else
+				SDL_INPUT_SetPortMode(1, JOY_MODE_KBD1, 0);
 		}
 		if (joy_port_mode[2] == JOY_MODE_UNDEFINED)
-			joy_port_mode[2] = JOY_MODE_NONE;
+			SDL_INPUT_SetPortMode(2, JOY_MODE_NONE, 0);
 		if (joy_port_mode[3] == JOY_MODE_UNDEFINED)
-			joy_port_mode[3] = JOY_MODE_NONE;
+			SDL_INPUT_SetPortMode(3, JOY_MODE_NONE, 0);
 	}
 
 	apply_port_mapping();
