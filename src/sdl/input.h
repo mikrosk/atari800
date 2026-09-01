@@ -59,6 +59,7 @@ int SDL_INPUT_GetNumHostJoysticks(void);
 const char *SDL_INPUT_GetHostJoystickName(int index);
 const char *SDL_INPUT_GetHostJoystickDisplayName(int index);
 int SDL_INPUT_GetNumLPTJoysticks(void);
+const char *SDL_INPUT_GetPortSourceName(int port);
 int SDL_INPUT_GetPortMode(int port);
 int SDL_INPUT_GetPortParam(int port);
 void SDL_INPUT_SetPortMode(int port, int mode, int param);

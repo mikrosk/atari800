@@ -78,9 +78,8 @@ static int grab_mouse = FALSE;
 #define JOY_MODE_HOST_JOY    4
 
 static int joy_port_mode[4] = {JOY_MODE_UNDEFINED, JOY_MODE_UNDEFINED, JOY_MODE_NONE, JOY_MODE_NONE};
-static int joy_port_param[4] = {0, 0, 0, 0};
+static int joy_port_param[4] = {-1, -1, -1, -1};
 static char joy_port_name[4][256] = {{0}};
-static int joy_port_has_name[4] = {0};
 static int joy_port_slot[4] = {0};
 static int paddle_pot_axis[4][2] = {{2,3},{2,3},{2,3},{2,3}};
 static int paddle_fire_btn[4][2] = {{4,5},{4,5},{4,5},{4,5}};
@@ -581,6 +580,16 @@ int SDL_INPUT_GetPortParam(int port) {
 	return 0;
 }
 
+/* Return the label of the input source of an Atari joystick port. A host
+   joystick that is not connected is named from the remembered assignment. */
+const char *SDL_INPUT_GetPortSourceName(int port) {
+	if (port < 0 || port >= MAX_JOYSTICKS)
+		return "?";
+	if (joy_port_param[port] >= 0)
+		return SDL_INPUT_GetHostJoystickDisplayName(joy_port_param[port]);
+	return joy_port_name[port][0] != '\0' ? joy_port_name[port] : "?";
+}
+
 /* Assign input source to an Atari joystick port.
    Updates joy_port_mode/param and records host joystick name for
    persistent name-based matching across reboots. */
@@ -592,12 +601,11 @@ void SDL_INPUT_SetPortMode(int port, int mode, int param) {
 			const char *name = SDL_INPUT_GetHostJoystickName(param);
 			if (name) {
 				Util_strlcpy(joy_port_name[port], name, sizeof(joy_port_name[port]));
-				joy_port_has_name[port] = 1;
+				joy_port_slot[port] = host_joy_slot[param] > 0 ? host_joy_slot[param] : 0;
 			}
 		} else {
 			joy_port_name[port][0] = '\0';
-			joy_port_has_name[port] = 0;
-			joy_port_slot[port] = 0;
+			joy_port_slot[port] = mode == JOY_MODE_PARALLEL ? param : 0;
 		}
 		apply_port_mapping();
 	}
@@ -661,7 +669,6 @@ int SDL_INPUT_ReadConfig(char *option, char *parameters)
 	}
 	else if (strcmp(option, KEY_SDL"JOY_PORT_0_NAME") == 0) {
 		Util_strlcpy(joy_port_name[0], parameters, sizeof(joy_port_name[0]));
-		joy_port_has_name[0] = 1;
 		return TRUE;
 	}
 	else if (strcmp(option, KEY_SDL"JOY_PORT_0_SLOT") == 0) {
@@ -674,7 +681,6 @@ int SDL_INPUT_ReadConfig(char *option, char *parameters)
 	}
 	else if (strcmp(option, KEY_SDL"JOY_PORT_1_NAME") == 0) {
 		Util_strlcpy(joy_port_name[1], parameters, sizeof(joy_port_name[1]));
-		joy_port_has_name[1] = 1;
 		return TRUE;
 	}
 	else if (strcmp(option, KEY_SDL"JOY_PORT_1_SLOT") == 0) {
@@ -687,7 +693,6 @@ int SDL_INPUT_ReadConfig(char *option, char *parameters)
 	}
 	else if (strcmp(option, KEY_SDL"JOY_PORT_2_NAME") == 0) {
 		Util_strlcpy(joy_port_name[2], parameters, sizeof(joy_port_name[2]));
-		joy_port_has_name[2] = 1;
 		return TRUE;
 	}
 	else if (strcmp(option, KEY_SDL"JOY_PORT_2_SLOT") == 0) {
@@ -700,7 +705,6 @@ int SDL_INPUT_ReadConfig(char *option, char *parameters)
 	}
 	else if (strcmp(option, KEY_SDL"JOY_PORT_3_NAME") == 0) {
 		Util_strlcpy(joy_port_name[3], parameters, sizeof(joy_port_name[3]));
-		joy_port_has_name[3] = 1;
 		return TRUE;
 	}
 	else if (strcmp(option, KEY_SDL"JOY_PORT_3_SLOT") == 0) {
@@ -843,11 +847,9 @@ void SDL_INPUT_WriteConfig(FILE *fp)
 {
 	int i;
 	for (i = 0; i < MAX_JOYSTICKS; i++) {
-		int s = joy_port_param[i] >= 0 && joy_port_param[i] < MAX_HOST_JOYSTICKS ? host_joy_slot[joy_port_param[i]] : -1;
 		fprintf(fp, KEY_SDL"JOY_PORT_%d_MODE=%d\n", i, joy_port_mode[i]);
 		fprintf(fp, KEY_SDL"JOY_PORT_%d_NAME=%s\n", i, joy_port_name[i]);
-		fprintf(fp, KEY_SDL"JOY_PORT_%d_SLOT=%d\n", i,
-		        joy_port_mode[i] == JOY_MODE_PARALLEL ? joy_port_param[i] : (s >= 0 ? s : 0));
+		fprintf(fp, KEY_SDL"JOY_PORT_%d_SLOT=%d\n", i, joy_port_slot[i]);
 		fprintf(fp, KEY_SDL"JOY_PORT_%d_PADDLE_AXES=%d,%d\n", i, paddle_pot_axis[i][0], paddle_pot_axis[i][1]);
 		fprintf(fp, KEY_SDL"JOY_PORT_%d_PADDLE_BUTTONS=%d,%d\n", i, paddle_fire_btn[i][0], paddle_fire_btn[i][1]);
 	}
@@ -2289,7 +2291,7 @@ int SDL_INPUT_Initialise(int *argc, char *argv[])
 		{
 			int p;
 			for (p = 0; p < MAX_JOYSTICKS; p++) {
-				if ((joy_port_mode[p] == JOY_MODE_HOST_JOY || joy_port_mode[p] == JOY_MODE_PADDLE) && joy_port_has_name[p] && joy_port_name[p][0]) {
+				if ((joy_port_mode[p] == JOY_MODE_HOST_JOY || joy_port_mode[p] == JOY_MODE_PADDLE) && joy_port_name[p][0]) {
 					int found = -1;
 					int slot_count = 0;
 					int j;
@@ -2303,10 +2305,9 @@ int SDL_INPUT_Initialise(int *argc, char *argv[])
 							slot_count++;
 						}
 					}
-					if (found >= 0)
-						joy_port_param[p] = found;
-					else
-						joy_port_mode[p] = JOY_MODE_NONE;
+					joy_port_param[p] = found;
+					Log_print("Port %d: %s%s", p + 1, joy_port_name[p],
+					          found >= 0 ? "" : " (not connected)");
 				}
 			}
 		}

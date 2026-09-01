@@ -4000,17 +4000,11 @@ static void ControllerConfiguration(void)
 						snprintf(port_suffix[p], sizeof(port_suffix[p]), "Parallel port %d", param + 1);
 						menu_array[5 + p * 2].suffix = port_suffix[p];
 						break;
-				case JOY_MODE_HOST_JOY: {
-					const char *jname = SDL_INPUT_GetHostJoystickDisplayName(param);
-					menu_array[5 + p * 2].suffix = jname ? jname : "?";
-					break;
-				}
-				case JOY_MODE_PADDLE: {
-					const char *jname = SDL_INPUT_GetHostJoystickDisplayName(param);
-					menu_array[5 + p * 2].suffix = jname ? jname : "?";
-					break;
-				}
-				default:
+					case JOY_MODE_HOST_JOY:
+					case JOY_MODE_PADDLE:
+						menu_array[5 + p * 2].suffix = SDL_INPUT_GetPortSourceName(p);
+						break;
+					default:
 						menu_array[5 + p * 2].suffix = "None";
 						break;
 					}
