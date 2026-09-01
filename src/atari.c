@@ -509,15 +509,6 @@ int Atari800_Initialise(int *argc, char *argv[])
 	   the configuration file easier to edit */
 	SYSROM_SetDefaults();
 
-	/* if no configuration file read, try to save one with the defaults (except when
-	   using libatari800) */
-	if (!got_config)
-#ifdef LIBATARI800
-		; /* prevent warning for unused variable got_config */
-#else
-		CFG_WriteConfig();
-#endif
-
 #endif /* __PLUS */
 
 	for (i = j = 1; i < *argc; i++) {
@@ -949,6 +940,16 @@ int Atari800_Initialise(int *argc, char *argv[])
 		Atari800_ErrExit();
 		return FALSE;
 	}
+
+	/* If no configuration file was read, save one with the defaults.  This
+	   has to wait until the platform is initialised, or the file would
+	   describe none of the connected input devices. */
+#ifdef LIBATARI800
+	(void) got_config;
+#else
+	if (!got_config)
+		CFG_WriteConfig();
+#endif
 
 #if SUPPORTS_CHANGE_VIDEOMODE
 #ifndef DONT_DISPLAY
