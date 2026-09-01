@@ -507,26 +507,23 @@ static void reset_real_js_configs(void)
 #endif
 
 /*Write configurations of real joysticks*/
-static void write_real_js_configs(FILE* fp)
+static void write_real_js_config(FILE* fp, int port)
 {
-    int i;
-    for (i = 0; i < MAX_JOYSTICKS; i++) {
-        fprintf(fp, KEY_SDL"JOY_%d_USE_HAT=%d\n", i, stick_devs[i].real_config.use_hat);
+    fprintf(fp, KEY_SDL"JOY_PORT_%d_USE_HAT=%d\n", port, stick_devs[port].real_config.use_hat);
 #if SDL2
-        fprintf(fp, KEY_SDL"JOY_%d_AXES=%d\n", i, stick_devs[i].real_config.axes);
-        fprintf(fp, KEY_SDL"JOY_%d_DIAGONALS=%d\n", i, stick_devs[i].real_config.diagonal_zones);
-        fprintf(fp, KEY_SDL"JOY_%d_BUTTON_ACTIONS=", i);
-		for (int btn = 0; btn < INPUT_JOYSTICK_MAX_BUTTONS; ++btn) {
-        	fprintf(fp, "%d,", stick_devs[i].real_config.buttons[btn].action);
-		}
-        fprintf(fp, "\n");
-        fprintf(fp, KEY_SDL"JOY_%d_BUTTON_KEYS=", i);
-		for (int btn = 0; btn < INPUT_JOYSTICK_MAX_BUTTONS; ++btn) {
-        	fprintf(fp, "%d,", stick_devs[i].real_config.buttons[btn].key);
-		}
-        fprintf(fp, "\n");
+    fprintf(fp, KEY_SDL"JOY_PORT_%d_AXES=%d\n", port, stick_devs[port].real_config.axes);
+    fprintf(fp, KEY_SDL"JOY_PORT_%d_DIAGONALS=%d\n", port, stick_devs[port].real_config.diagonal_zones);
+    fprintf(fp, KEY_SDL"JOY_PORT_%d_BUTTON_ACTIONS=", port);
+	for (int btn = 0; btn < INPUT_JOYSTICK_MAX_BUTTONS; ++btn) {
+    	fprintf(fp, "%d,", stick_devs[port].real_config.buttons[btn].action);
+	}
+    fprintf(fp, "\n");
+    fprintf(fp, KEY_SDL"JOY_PORT_%d_BUTTON_KEYS=", port);
+	for (int btn = 0; btn < INPUT_JOYSTICK_MAX_BUTTONS; ++btn) {
+    	fprintf(fp, "%d,", stick_devs[port].real_config.buttons[btn].key);
+	}
+    fprintf(fp, "\n");
 #endif
-    }
 }
 
 /*Get pointer to a real joystick configuration*/
@@ -777,45 +774,45 @@ int SDL_INPUT_ReadConfig(char *option, char *parameters)
 		return SDLKeyBind(&KBD_STICK_1_UP, parameters);
 	else if (strcmp(option, KEY_SDL"JOY_1_TRIGGER") == 0)
 		return SDLKeyBind(&KBD_TRIG_1, parameters);
-	else if (strcmp(option, KEY_SDL"JOY_0_USE_HAT") == 0)
+	else if (strcmp(option, KEY_SDL"JOY_PORT_0_USE_HAT") == 0)
 		return set_real_js_use_hat(0,parameters);
-	else if (strcmp(option, KEY_SDL"JOY_1_USE_HAT") == 0)
+	else if (strcmp(option, KEY_SDL"JOY_PORT_1_USE_HAT") == 0)
 		return set_real_js_use_hat(1,parameters);
-	else if (strcmp(option, KEY_SDL"JOY_2_USE_HAT") == 0)
+	else if (strcmp(option, KEY_SDL"JOY_PORT_2_USE_HAT") == 0)
 		return set_real_js_use_hat(2,parameters);
-	else if (strcmp(option, KEY_SDL"JOY_3_USE_HAT") == 0)
+	else if (strcmp(option, KEY_SDL"JOY_PORT_3_USE_HAT") == 0)
 		return set_real_js_use_hat(3,parameters);
-	else if (strcmp(option, KEY_SDL"JOY_0_AXES") == 0)
+	else if (strcmp(option, KEY_SDL"JOY_PORT_0_AXES") == 0)
 		return set_real_js_axes(0,parameters);
-	else if (strcmp(option, KEY_SDL"JOY_1_AXES") == 0)
+	else if (strcmp(option, KEY_SDL"JOY_PORT_1_AXES") == 0)
 		return set_real_js_axes(1,parameters);
-	else if (strcmp(option, KEY_SDL"JOY_2_AXES") == 0)
+	else if (strcmp(option, KEY_SDL"JOY_PORT_2_AXES") == 0)
 		return set_real_js_axes(2,parameters);
-	else if (strcmp(option, KEY_SDL"JOY_3_AXES") == 0)
+	else if (strcmp(option, KEY_SDL"JOY_PORT_3_AXES") == 0)
 		return set_real_js_axes(3,parameters);
-	else if (strcmp(option, KEY_SDL"JOY_0_DIAGONALS") == 0)
+	else if (strcmp(option, KEY_SDL"JOY_PORT_0_DIAGONALS") == 0)
 		return set_real_js_diagonals(0,parameters);
-	else if (strcmp(option, KEY_SDL"JOY_1_DIAGONALS") == 0)
+	else if (strcmp(option, KEY_SDL"JOY_PORT_1_DIAGONALS") == 0)
 		return set_real_js_diagonals(1,parameters);
-	else if (strcmp(option, KEY_SDL"JOY_2_DIAGONALS") == 0)
+	else if (strcmp(option, KEY_SDL"JOY_PORT_2_DIAGONALS") == 0)
 		return set_real_js_diagonals(2,parameters);
-	else if (strcmp(option, KEY_SDL"JOY_3_DIAGONALS") == 0)
+	else if (strcmp(option, KEY_SDL"JOY_PORT_3_DIAGONALS") == 0)
 		return set_real_js_diagonals(3,parameters);
-	else if (strcmp(option, KEY_SDL"JOY_0_BUTTON_ACTIONS") == 0)
+	else if (strcmp(option, KEY_SDL"JOY_PORT_0_BUTTON_ACTIONS") == 0)
 		return set_real_js_actions(0, parameters);
-	else if (strcmp(option, KEY_SDL"JOY_0_BUTTON_KEYS") == 0)
+	else if (strcmp(option, KEY_SDL"JOY_PORT_0_BUTTON_KEYS") == 0)
 		return set_real_js_keys(0, parameters);
-	else if (strcmp(option, KEY_SDL"JOY_1_BUTTON_ACTIONS") == 0)
+	else if (strcmp(option, KEY_SDL"JOY_PORT_1_BUTTON_ACTIONS") == 0)
 		return set_real_js_actions(1, parameters);
-	else if (strcmp(option, KEY_SDL"JOY_1_BUTTON_KEYS") == 0)
+	else if (strcmp(option, KEY_SDL"JOY_PORT_1_BUTTON_KEYS") == 0)
 		return set_real_js_keys(1, parameters);
-	else if (strcmp(option, KEY_SDL"JOY_2_BUTTON_ACTIONS") == 0)
+	else if (strcmp(option, KEY_SDL"JOY_PORT_2_BUTTON_ACTIONS") == 0)
 		return set_real_js_actions(2, parameters);
-	else if (strcmp(option, KEY_SDL"JOY_2_BUTTON_KEYS") == 0)
+	else if (strcmp(option, KEY_SDL"JOY_PORT_2_BUTTON_KEYS") == 0)
 		return set_real_js_keys(2, parameters);
-	else if (strcmp(option, KEY_SDL"JOY_3_BUTTON_ACTIONS") == 0)
+	else if (strcmp(option, KEY_SDL"JOY_PORT_3_BUTTON_ACTIONS") == 0)
 		return set_real_js_actions(3, parameters);
-	else if (strcmp(option, KEY_SDL"JOY_3_BUTTON_KEYS") == 0)
+	else if (strcmp(option, KEY_SDL"JOY_PORT_3_BUTTON_KEYS") == 0)
 		return set_real_js_keys(3, parameters);
 	else if (strcmp(option, KEY_SDL"UI_KEY") == 0)
 		return SDLKeyBind(&KBD_UI, parameters);
@@ -855,6 +852,7 @@ void SDL_INPUT_WriteConfig(FILE *fp)
 		fprintf(fp, KEY_SDL"JOY_PORT_%d_MODE=%d\n", i, joy_port_mode[i]);
 		fprintf(fp, KEY_SDL"JOY_PORT_%d_NAME=%s\n", i, joy_port_name[i]);
 		fprintf(fp, KEY_SDL"JOY_PORT_%d_SLOT=%d\n", i, joy_port_slot[i]);
+		write_real_js_config(fp, i);
 		fprintf(fp, KEY_SDL"JOY_PORT_%d_PADDLE_AXES=%d,%d\n", i, paddle_pot_axis[i][0], paddle_pot_axis[i][1]);
 		fprintf(fp, KEY_SDL"JOY_PORT_%d_PADDLE_BUTTONS=%d,%d\n", i, paddle_fire_btn[i][0], paddle_fire_btn[i][1]);
 	}
@@ -883,7 +881,6 @@ void SDL_INPUT_WriteConfig(FILE *fp)
 	fprintf(fp, KEY_SDL"ONSCREEN_KEY=%d\n", KBD_OSK);
 	fprintf(fp, KEY_SDL"TURBO_KEY=%d\n", KBD_TURBO);
 
-	write_real_js_configs(fp);
 }
 
 void PLATFORM_SetJoystickKey(int joystick, int direction, int value)
