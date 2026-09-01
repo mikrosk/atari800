@@ -179,15 +179,18 @@ if [[ "$a8_target" = "android" ]]; then
 fi
 if [[ "$a8_host" = "falcon" ]]; then
     CFLAGS="-m68020-60 -O2 -fomit-frame-pointer -Wall"
-    LDFLAGS="-m68020-60"
+    LDFLAGS="$LDFLAGS -m68020-60"
     SUPPORTS_RDEVICE=no
     SUPPORTS_NETSIO=no
 fi
 if [[ "$a8_host" = "firebee" ]]; then
     CFLAGS="-mcpu=5475 -O2 -fomit-frame-pointer -Wall"
-    LDFLAGS="-mcpu=5475"
+    LDFLAGS="$LDFLAGS -mcpu=5475"
     SUPPORTS_RDEVICE=no
     SUPPORTS_NETSIO=no
+fi
+if [[ "$a8_host" = "falcon" -o "$a8_host" = "firebee" ]]; then
+    LDFLAGS="$LDFLAGS -Wl,--msuper-memory -Wl,--stack,256k"
 fi
 if [[ "$a8_target" = "libatari800" ]]; then
     with_readline=no
